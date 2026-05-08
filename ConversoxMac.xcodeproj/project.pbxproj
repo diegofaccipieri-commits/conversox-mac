@@ -1,0 +1,473 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0C909786F05C957BB2444AA7 /* ChatsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3BC8DEB550DECF7B50AB57 /* ChatsViewModel.swift */; };
+		13E755524ED41BBD608CBD2E /* CXAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE937E0C1CA32D89290EF5AC /* CXAvatarView.swift */; };
+		15CEE6FA5D57D73E0E0AC5AD /* ChatListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895C2A4373D814482F7091A6 /* ChatListView.swift */; };
+		38F4890232DF2C390FE88E7A /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6EF76195C2D2BA61AF3AD51 /* DateParser.swift */; };
+		4FBED8404E5E134DB1762509 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D6200BC03548C846D3A4DB /* RootView.swift */; };
+		5873FF15848729201AC116CF /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77053B8B3A7ED419C71A2D8 /* Chat.swift */; };
+		6A373118AF2D8101DF4FBF67 /* CXChatRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CE80DEBF8A6B50D7837CD8 /* CXChatRowView.swift */; };
+		7CC1BAB3104A36EF369B0582 /* ConversoxMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E450147CA9706F3D4808DD2 /* ConversoxMacApp.swift */; };
+		803FB485945E1B5B10A46391 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1676546237DBFF9E07BBC1F4 /* AppBootstrap.swift */; };
+		8580792FC98974C520B6A388 /* NotificationPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEA5A04DC316BB4EA2A1CA1 /* NotificationPermissionManager.swift */; };
+		9054047BA517A95B153DDB03 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E522D532D90149AED5D8B00 /* SessionStore.swift */; };
+		9658E9A414CB76B49B2AD88F /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69741B8374F03745AF3A794 /* Message.swift */; };
+		AB24AFB42D7E1EF14F4E878D /* ConversoxTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE3D56D163C70EDF980F462F /* ConversoxTokens.swift */; };
+		ADE28F73709FFE614F3EA136 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA8904A791E72EBF7E29F14 /* SignInView.swift */; };
+		AFAD1537338B4E05D31B4087 /* MessageThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21392C80E1658A927923A15 /* MessageThreadView.swift */; };
+		C00CCC075A9D5A75390E1888 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC08E8024C110DFEC93146B /* AuthService.swift */; };
+		C89971B7B7CD4D6EF93AC48F /* ChatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4125601A9D2E1EA9F59CAA0 /* ChatsService.swift */; };
+		D6DD26F867102D0D7028989A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F816CB0B1BD29DB3BDFC4973 /* AppConfig.swift */; };
+		DCAAB51308A312D21F601001 /* AuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C569EDBCAC5654B0ED37B299 /* AuthModels.swift */; };
+		F19D72946F2F2F76F5D44BD3 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A94FF623BD91390CD52CA3 /* KeychainStore.swift */; };
+		FE0251A6707D9028A7DE921A /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3FF9F715201BDD97A08E1B /* HTTPClient.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1676546237DBFF9E07BBC1F4 /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrap.swift; sourceTree = "<group>"; };
+		1DA8904A791E72EBF7E29F14 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		4E522D532D90149AED5D8B00 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		71D6200BC03548C846D3A4DB /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		7E450147CA9706F3D4808DD2 /* ConversoxMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversoxMacApp.swift; sourceTree = "<group>"; };
+		7F3FF9F715201BDD97A08E1B /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
+		895C2A4373D814482F7091A6 /* ChatListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatListView.swift; sourceTree = "<group>"; };
+		8E3BC8DEB550DECF7B50AB57 /* ChatsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsViewModel.swift; sourceTree = "<group>"; };
+		8FC08E8024C110DFEC93146B /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		97418E815C8F4994E37AC842 /* ConversoxMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ConversoxMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A21392C80E1658A927923A15 /* MessageThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageThreadView.swift; sourceTree = "<group>"; };
+		C569EDBCAC5654B0ED37B299 /* AuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModels.swift; sourceTree = "<group>"; };
+		C77053B8B3A7ED419C71A2D8 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
+		C9A94FF623BD91390CD52CA3 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		DBEA5A04DC316BB4EA2A1CA1 /* NotificationPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionManager.swift; sourceTree = "<group>"; };
+		DE3D56D163C70EDF980F462F /* ConversoxTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversoxTokens.swift; sourceTree = "<group>"; };
+		E4125601A9D2E1EA9F59CAA0 /* ChatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsService.swift; sourceTree = "<group>"; };
+		E6EF76195C2D2BA61AF3AD51 /* DateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateParser.swift; sourceTree = "<group>"; };
+		E7CE80DEBF8A6B50D7837CD8 /* CXChatRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CXChatRowView.swift; sourceTree = "<group>"; };
+		F69741B8374F03745AF3A794 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
+		F816CB0B1BD29DB3BDFC4973 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		FE937E0C1CA32D89290EF5AC /* CXAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CXAvatarView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0D3250A4968D339E12A4586C /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				C569EDBCAC5654B0ED37B299 /* AuthModels.swift */,
+				8FC08E8024C110DFEC93146B /* AuthService.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		14AEF73756607C8CAE017887 /* ConversoxMac */ = {
+			isa = PBXGroup;
+			children = (
+				594BA3ECBD6BCCADE8A943B9 /* App */,
+				7537CA88078622F3C5BAA592 /* Core */,
+				5C60F3153411ED91D89916A7 /* Features */,
+				CAC8387AC63ED2E580477450 /* Models */,
+			);
+			name = ConversoxMac;
+			path = Sources/ConversoxMac;
+			sourceTree = "<group>";
+		};
+		1A754A189EA4BB3993F0CC99 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				DE3D56D163C70EDF980F462F /* ConversoxTokens.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		1BB24A5A5C9804791C24AF62 = {
+			isa = PBXGroup;
+			children = (
+				14AEF73756607C8CAE017887 /* ConversoxMac */,
+				AB7EF49DC34BBAB12F4E81AA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		2CB5B2B2069879896C9AA84C /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				DBEA5A04DC316BB4EA2A1CA1 /* NotificationPermissionManager.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		594BA3ECBD6BCCADE8A943B9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1676546237DBFF9E07BBC1F4 /* AppBootstrap.swift */,
+				7E450147CA9706F3D4808DD2 /* ConversoxMacApp.swift */,
+				71D6200BC03548C846D3A4DB /* RootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		5C60F3153411ED91D89916A7 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				C7F302D738E353B54115AE8A /* Chats */,
+				C94A16E3A2404BCC31ED4C8E /* Messages */,
+				C358AA5FDAEDEF2E028CB222 /* Session */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		7537CA88078622F3C5BAA592 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				0D3250A4968D339E12A4586C /* Auth */,
+				AC2D89E9E21859D629763DE3 /* Config */,
+				1A754A189EA4BB3993F0CC99 /* Design */,
+				EF8BBB6C2F673A89CDDF031A /* Network */,
+				2CB5B2B2069879896C9AA84C /* Notifications */,
+				C49286014122D59AC13DA012 /* Security */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		AB7EF49DC34BBAB12F4E81AA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				97418E815C8F4994E37AC842 /* ConversoxMac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AC2D89E9E21859D629763DE3 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				F816CB0B1BD29DB3BDFC4973 /* AppConfig.swift */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		C358AA5FDAEDEF2E028CB222 /* Session */ = {
+			isa = PBXGroup;
+			children = (
+				4E522D532D90149AED5D8B00 /* SessionStore.swift */,
+				1DA8904A791E72EBF7E29F14 /* SignInView.swift */,
+			);
+			path = Session;
+			sourceTree = "<group>";
+		};
+		C49286014122D59AC13DA012 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				C9A94FF623BD91390CD52CA3 /* KeychainStore.swift */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		C7F302D738E353B54115AE8A /* Chats */ = {
+			isa = PBXGroup;
+			children = (
+				895C2A4373D814482F7091A6 /* ChatListView.swift */,
+				E4125601A9D2E1EA9F59CAA0 /* ChatsService.swift */,
+				8E3BC8DEB550DECF7B50AB57 /* ChatsViewModel.swift */,
+				FE937E0C1CA32D89290EF5AC /* CXAvatarView.swift */,
+				E7CE80DEBF8A6B50D7837CD8 /* CXChatRowView.swift */,
+			);
+			path = Chats;
+			sourceTree = "<group>";
+		};
+		C94A16E3A2404BCC31ED4C8E /* Messages */ = {
+			isa = PBXGroup;
+			children = (
+				A21392C80E1658A927923A15 /* MessageThreadView.swift */,
+			);
+			path = Messages;
+			sourceTree = "<group>";
+		};
+		CAC8387AC63ED2E580477450 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				C77053B8B3A7ED419C71A2D8 /* Chat.swift */,
+				F69741B8374F03745AF3A794 /* Message.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		EF8BBB6C2F673A89CDDF031A /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				E6EF76195C2D2BA61AF3AD51 /* DateParser.swift */,
+				7F3FF9F715201BDD97A08E1B /* HTTPClient.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C25E681BB8FA07810E9C316D /* ConversoxMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8395FBE6ADB2B09327446960 /* Build configuration list for PBXNativeTarget "ConversoxMac" */;
+			buildPhases = (
+				3A891DDF2FA2E283F0A94535 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ConversoxMac;
+			packageProductDependencies = (
+			);
+			productName = ConversoxMac;
+			productReference = 97418E815C8F4994E37AC842 /* ConversoxMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		49D09B9D25CFA7AEC16972E9 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 8272692281441746CA0B847B /* Build configuration list for PBXProject "ConversoxMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1BB24A5A5C9804791C24AF62;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AB7EF49DC34BBAB12F4E81AA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C25E681BB8FA07810E9C316D /* ConversoxMac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3A891DDF2FA2E283F0A94535 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				803FB485945E1B5B10A46391 /* AppBootstrap.swift in Sources */,
+				D6DD26F867102D0D7028989A /* AppConfig.swift in Sources */,
+				DCAAB51308A312D21F601001 /* AuthModels.swift in Sources */,
+				C00CCC075A9D5A75390E1888 /* AuthService.swift in Sources */,
+				13E755524ED41BBD608CBD2E /* CXAvatarView.swift in Sources */,
+				6A373118AF2D8101DF4FBF67 /* CXChatRowView.swift in Sources */,
+				5873FF15848729201AC116CF /* Chat.swift in Sources */,
+				15CEE6FA5D57D73E0E0AC5AD /* ChatListView.swift in Sources */,
+				C89971B7B7CD4D6EF93AC48F /* ChatsService.swift in Sources */,
+				0C909786F05C957BB2444AA7 /* ChatsViewModel.swift in Sources */,
+				7CC1BAB3104A36EF369B0582 /* ConversoxMacApp.swift in Sources */,
+				AB24AFB42D7E1EF14F4E878D /* ConversoxTokens.swift in Sources */,
+				38F4890232DF2C390FE88E7A /* DateParser.swift in Sources */,
+				FE0251A6707D9028A7DE921A /* HTTPClient.swift in Sources */,
+				F19D72946F2F2F76F5D44BD3 /* KeychainStore.swift in Sources */,
+				9658E9A414CB76B49B2AD88F /* Message.swift in Sources */,
+				AFAD1537338B4E05D31B4087 /* MessageThreadView.swift in Sources */,
+				8580792FC98974C520B6A388 /* NotificationPermissionManager.swift in Sources */,
+				4FBED8404E5E134DB1762509 /* RootView.swift in Sources */,
+				9054047BA517A95B153DDB03 /* SessionStore.swift in Sources */,
+				ADE28F73709FFE614F3EA136 /* SignInView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		01DF37EB933E4EAA7DDA2239 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = ConversoxMac/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.diego.conversoxmac;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		0AEAEE9BA8406213720430CE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		45B82E873405699C84599B8B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = ConversoxMac/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.diego.conversoxmac;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		80A40CF76D2CA2D9DCF498FB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8272692281441746CA0B847B /* Build configuration list for PBXProject "ConversoxMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				80A40CF76D2CA2D9DCF498FB /* Debug */,
+				0AEAEE9BA8406213720430CE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8395FBE6ADB2B09327446960 /* Build configuration list for PBXNativeTarget "ConversoxMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				01DF37EB933E4EAA7DDA2239 /* Debug */,
+				45B82E873405699C84599B8B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 49D09B9D25CFA7AEC16972E9 /* Project object */;
+}

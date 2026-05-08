@@ -1,0 +1,30 @@
+name: ConversoxMac
+options:
+  bundleIdPrefix: com.diego
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15.0"
+
+targets:
+  ConversoxMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - Sources/ConversoxMac
+    info:
+      path: ConversoxMac/Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: ConversoxMac OAuth Callback
+            CFBundleURLSchemes:
+              - conversoxmac
+        NSHumanReadableCopyright: ""
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.diego.conversoxmac
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
