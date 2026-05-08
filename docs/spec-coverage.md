@@ -17,15 +17,15 @@ This file tracks whether the loaded specs are active in the project and how much
 | Area | Status | Notes |
 |---|---|---|
 | Signed macOS app bundle | Implemented | Release script builds, signs and installs app. |
-| X-API-Key auth | Partial | App stores key and validates via `/api/me.php` or `chats.php` fallback. Scoped key server work still pending. |
-| Tenant switcher | Partial | Login has `imigrando|welcome`; endpoint path routing still needs full Welcome prefix handling. |
-| `/api/me.php` | Partial | App calls it; server stub exists; production endpoint still pending. |
+| X-API-Key auth | Partial | App stores key and validates via `/api/me.php` with `chats.php` fallback, now through `ConversoxAPI`. |
+| Tenant switcher | Partial | Login has `imigrando|welcome`; `ConversoxAPI` already routes `/Conversox/api` vs `/Welcome/Conversox/api`. |
+| `/api/me.php` | Partial | App bootstraps profile from `/api/me.php` via `ConversoxAPI`; backend rollout still needs smoke validation. |
 | Chat list | Partial | Loads `chats.php`, sorts locally, basic search/filter UI. Low-priority and channel logic still incomplete. |
 | Chat row visual parity | Partial | Dark-first row, badges and dense layout implemented. Avatar image proxy not implemented yet. |
 | Message history | Partial | Loads `messages.php`, basic text body mapping. Reverse pagination and media types pending. |
 | Send text | Partial | Sends basic JSON text through `send.php`. Attachments/reply/mentions/signature pending. |
 | Mark read | Partial | Called after loading messages. Manual unread and provider metadata handling pending. |
-| Polling | Partial | 3s polling implemented. Backoff/recovery/dedup/inline reactions pending. |
+| Polling | Partial | 3s polling implemented via `ConversoxAPI`. Backoff/recovery/dedup/inline reactions pending. |
 | Notifications | Partial | Permission/local notification shell exists. Click routing, silence rules and sound pending. |
 | Visual shell | Partial | Dark shell/tokens/sidebar/header/bubbles/composer implemented. Wallpaper pattern, toasts, drop overlay pending. |
 | Contacts tab | Not started | Needs `contacts_directory.php` and related endpoints. |
@@ -44,8 +44,8 @@ This file tracks whether the loaded specs are active in the project and how much
 
 Before adding more UI surface, implement:
 
-1. `ConversoxAPI` typed actor for all endpoint calls.
-2. Error mapper using literal backend `error` strings from `docs/endpoint-contracts.md`.
-3. Polling backoff and dedup.
-4. Full chat filters/search/channel filters.
-5. Message model expansion for media/status/reply/reactions.
+1. Polling backoff and dedup.
+2. Full chat filters/search/channel filters.
+3. Message model expansion for media/status/reply/reactions.
+4. Multipart attachments + media cache flows.
+5. Composer reply/note/signature states and context actions.

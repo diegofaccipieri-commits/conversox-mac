@@ -34,6 +34,9 @@ final class SessionStore: ObservableObject {
             let newSession = try await authService.signIn(apiKey: apiKey, authSource: authSource)
             session = newSession
             state = .signedIn
+            lastError = nil
+        } catch let error as ConversoxError {
+            lastError = "\(error.userMessage) \(error.recommendedAction)"
         } catch {
             lastError = "Falha ao validar X-API-Key."
         }

@@ -1,6 +1,6 @@
 import Foundation
 
-struct Chat: Codable, Identifiable {
+struct Chat: Codable, Identifiable, Sendable {
     let jid: String
     let connectionID: String
     let instance: String?
@@ -103,7 +103,7 @@ struct Chat: Codable, Identifiable {
     }
 }
 
-struct ChatListResponse: Codable {
+struct ChatListResponse: Codable, Sendable {
     let ok: Bool?
     let items: [Chat]
     let nextCursor: String?

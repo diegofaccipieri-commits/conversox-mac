@@ -36,6 +36,8 @@ final class ChatsViewModel: ObservableObject {
                 selectedChatID = chats.first?.id
             }
             updateBadge()
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
         } catch {
             errorMessage = "Falha ao carregar chats."
         }
@@ -49,6 +51,8 @@ final class ChatsViewModel: ObservableObject {
             messagesByChat[chatID] = response.messages
             try? await chatsService.markRead(session: session, chat: chat)
             await reloadChats()
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
         } catch {
             errorMessage = "Falha ao carregar mensagens."
         }
@@ -66,6 +70,9 @@ final class ChatsViewModel: ObservableObject {
             try await chatsService.sendMessage(session: session, chat: chat, text: text)
             await loadMessages(for: chat.id)
             await reloadChats()
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            draftMessage = text
         } catch {
             errorMessage = "Falha ao enviar mensagem."
             draftMessage = text
@@ -111,6 +118,8 @@ final class ChatsViewModel: ObservableObject {
             if !response.changedChats.isEmpty || response.inlineMessages.isEmpty == false {
                 await reloadChats()
             }
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
         } catch {
             errorMessage = "Falha no polling do Conversox."
         }

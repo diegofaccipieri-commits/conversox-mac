@@ -46,4 +46,23 @@ struct ConversoxMacTests {
         #expect(message.senderName == "Cliente X")
         #expect(message.fromMe == false)
     }
+
+    @Test func tenantRoutingShouldUseWelcomePrefixForConversoxEndpoints() throws {
+        let api = ConversoxAPI()
+        let path = api.resolvedPath(for: .chats, tenant: "welcome")
+        #expect(path == "/Welcome/Conversox/api/chats.php")
+    }
+
+    @Test func errorMappingShouldPreserveForbiddenNotAssignedMeaning() throws {
+        let error = ConversoxError.backend(
+            httpStatus: 403,
+            backendError: "forbidden_not_assigned",
+            rawBody: "{\"ok\":false,\"error\":\"forbidden_not_assigned\"}"
+        )
+
+        #expect(error.kind == .backend)
+        #expect(error.httpStatus == 403)
+        #expect(error.backendError == "forbidden_not_assigned")
+        #expect(error.userMessage.contains("nao atribuida"))
+    }
 }

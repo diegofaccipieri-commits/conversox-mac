@@ -1,6 +1,6 @@
 import Foundation
 
-struct UserProfile: Codable, Identifiable {
+struct UserProfile: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let email: String
@@ -9,13 +9,13 @@ struct UserProfile: Codable, Identifiable {
     let connections: [String]
 }
 
-struct PersistedSession: Codable {
+struct PersistedSession: Codable, Sendable {
     let apiKey: String
     let authSource: String
     let user: UserProfile
 }
 
-struct MeResponse: Decodable {
+struct MeResponse: Decodable, Sendable {
     let ok: Bool
     let user: MeUser
     let conversox: MeConversox?
@@ -32,7 +32,7 @@ struct MeResponse: Decodable {
     }
 }
 
-struct MeUser: Decodable {
+struct MeUser: Decodable, Sendable {
     let id: FlexibleString
     let email: String?
     let name: String?
@@ -48,11 +48,11 @@ struct MeUser: Decodable {
     }
 }
 
-struct MeConversox: Decodable {
+struct MeConversox: Decodable, Sendable {
     let connections: [String]
 }
 
-struct FlexibleString: Codable {
+struct FlexibleString: Codable, Sendable {
     let value: String
 
     init(_ value: String) {

@@ -1,6 +1,6 @@
 import Foundation
 
-struct Message: Codable, Identifiable {
+struct Message: Codable, Identifiable, Sendable {
     let id: String
     let chatID: String
     let senderName: String
@@ -79,7 +79,7 @@ struct Message: Codable, Identifiable {
     }
 }
 
-struct MessageListResponse: Codable {
+struct MessageListResponse: Codable, Sendable {
     let ok: Bool?
     let messages: [Message]
     let nextCursor: String?

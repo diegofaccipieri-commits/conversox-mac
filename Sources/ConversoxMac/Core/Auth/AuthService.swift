@@ -5,7 +5,7 @@ final class AuthService {
     static let shared = AuthService()
 
     private let keychain = KeychainStore.shared
-    private let httpClient = HTTPClient()
+    private let api = ConversoxAPI()
     private let sessionKey = "conversox.session"
 
     private init() {}
@@ -51,12 +51,17 @@ final class AuthService {
 
     private func resolveUserProfile(using session: PersistedSession) async throws -> UserProfile {
         do {
-            let me: MeResponse = try await httpClient.request("/api/me.php", session: session)
-            return me.asUserProfile(authSource: session.authSource)
-        } catch APIError.httpStatus(404, _) {
+            let response: ConversoxHTTPResponse<MeResponse> = try await api.getJSON(.me, session: session, timeout: 10)
+            return response.value.asUserProfile(authSource: session.authSource)
+        } catch let error as ConversoxError where error.httpStatus == 404 {
             // /api/me.php is a required server follow-up. Until it exists, validate the key
             // through the Conversox API and use a constrained local profile.
-            let _: ChatListResponse = try await httpClient.request("/Conversox/api/chats.php?_t=\(Int(Date().timeIntervalSince1970))", session: session)
+            let _: ConversoxHTTPResponse<ChatListResponse> = try await api.getJSON(
+                .chats,
+                queryItems: [URLQueryItem(name: "_t", value: String(Int(Date().timeIntervalSince1970)))],
+                session: session,
+                timeout: 10
+            )
             return session.user
         }
     }

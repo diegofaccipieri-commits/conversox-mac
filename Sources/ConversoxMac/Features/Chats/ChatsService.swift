@@ -1,6 +1,6 @@
 import Foundation
 
-struct SendMessageRequest: Encodable {
+struct SendMessageRequest: Encodable, Sendable {
     let jid: String
     let connectionID: String
     let instance: String?
@@ -14,7 +14,7 @@ struct SendMessageRequest: Encodable {
     }
 }
 
-struct SendMessageResponse: Decodable {
+struct SendMessageResponse: Decodable, Sendable {
     let ok: Bool
     let messageID: String?
     let error: String?
@@ -26,7 +26,7 @@ struct SendMessageResponse: Decodable {
     }
 }
 
-struct PollResponse: Decodable {
+struct PollResponse: Decodable, Sendable {
     let ok: Bool
     let serverTS: Double?
     let changedChats: [ChatChange]
@@ -40,7 +40,7 @@ struct PollResponse: Decodable {
     }
 }
 
-struct ChatChange: Decodable {
+struct ChatChange: Decodable, Sendable {
     let jid: String
     let connectionID: String
     let unread: Int?
@@ -58,7 +58,7 @@ struct ChatChange: Decodable {
     }
 }
 
-struct MarkReadRequest: Encodable {
+struct MarkReadRequest: Encodable, Sendable {
     let action = "mark_read"
     let jid: String
     let connectionID: String
@@ -71,47 +71,46 @@ struct MarkReadRequest: Encodable {
 }
 
 struct ChatsService {
-    private let httpClient = HTTPClient()
+    private let api = ConversoxAPI()
 
     func fetchChats(session: PersistedSession) async throws -> ChatListResponse {
-        let path = pathWithQuery("/Conversox/api/chats.php", [
+        let response: ConversoxHTTPResponse<ChatListResponse> = try await api.getJSON(.chats, queryItems: [
             URLQueryItem(name: "_t", value: String(Int(Date().timeIntervalSince1970)))
-        ])
-        return try await httpClient.request(path, session: session)
+        ], session: session, timeout: 8)
+        return response.value
     }
 
     func fetchMessages(session: PersistedSession, chat: Chat, limit: Int = 50) async throws -> MessageListResponse {
-        let path = pathWithQuery("/Conversox/api/messages.php", [
+        let response: ConversoxHTTPResponse<MessageListResponse> = try await api.getJSON(.messages, queryItems: [
             URLQueryItem(name: "jid", value: chat.jid),
             URLQueryItem(name: "connection_id", value: chat.connectionID),
             URLQueryItem(name: "limit", value: String(limit))
-        ])
-        let response: MessageListResponse = try await httpClient.request(path, session: session)
+        ], session: session, timeout: 15)
         return MessageListResponse(
-            ok: response.ok,
-            messages: response.messages.map { $0.withChatID(chat.id) },
-            nextCursor: response.nextCursor
+            ok: response.value.ok,
+            messages: response.value.messages.map { $0.withChatID(chat.id) },
+            nextCursor: response.value.nextCursor
         )
     }
 
     func sendMessage(session: PersistedSession, chat: Chat, text: String) async throws {
-        let response: SendMessageResponse = try await httpClient.request(
-            "/Conversox/api/send.php",
-            method: "POST",
+        let response: ConversoxHTTPResponse<SendMessageResponse> = try await api.postJSON(
+            .send,
+            body: SendMessageRequest(jid: chat.jid, connectionID: chat.connectionID, instance: chat.instance, text: text),
             session: session,
-            body: SendMessageRequest(jid: chat.jid, connectionID: chat.connectionID, instance: chat.instance, text: text)
+            timeout: 30
         )
-        if !response.ok {
-            throw APIError.httpStatus(200, body: response.error)
+        if !response.value.ok {
+            throw ConversoxError.backend(httpStatus: 502, backendError: response.value.error ?? "send_failed", rawBody: nil)
         }
     }
 
     func markRead(session: PersistedSession, chat: Chat) async throws {
-        try await httpClient.requestNoContent(
-            "/Conversox/api/actions.php",
-            method: "POST",
+        _ = try await api.postJSONNoContent(
+            .actions,
+            body: MarkReadRequest(jid: chat.jid, connectionID: chat.connectionID),
             session: session,
-            body: MarkReadRequest(jid: chat.jid, connectionID: chat.connectionID)
+            timeout: 15
         )
     }
 
@@ -123,13 +122,7 @@ struct ChatsService {
             queryItems.append(URLQueryItem(name: "active_jid", value: activeChat.jid))
             queryItems.append(URLQueryItem(name: "active_connection_id", value: activeChat.connectionID))
         }
-        return try await httpClient.request(pathWithQuery("/Conversox/api/poll.php", queryItems), session: session)
-    }
-
-    private func pathWithQuery(_ path: String, _ queryItems: [URLQueryItem]) -> String {
-        var components = URLComponents()
-        components.path = path
-        components.queryItems = queryItems
-        return components.string ?? path
+        let response: ConversoxHTTPResponse<PollResponse> = try await api.getJSON(.poll, queryItems: queryItems, session: session, timeout: 12)
+        return response.value
     }
 }
