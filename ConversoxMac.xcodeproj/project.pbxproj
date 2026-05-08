@@ -26,6 +26,7 @@
 		C89971B7B7CD4D6EF93AC48F /* ChatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4125601A9D2E1EA9F59CAA0 /* ChatsService.swift */; };
 		D6DD26F867102D0D7028989A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F816CB0B1BD29DB3BDFC4973 /* AppConfig.swift */; };
 		DCAAB51308A312D21F601001 /* AuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C569EDBCAC5654B0ED37B299 /* AuthModels.swift */; };
+		E266CF9900E1901C0C4CA2FB /* ConversoxAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349F708E6DAA8EB479240F62 /* ConversoxAPI.swift */; };
 		F19D72946F2F2F76F5D44BD3 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A94FF623BD91390CD52CA3 /* KeychainStore.swift */; };
 		FE0251A6707D9028A7DE921A /* HTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3FF9F715201BDD97A08E1B /* HTTPClient.swift */; };
 /* End PBXBuildFile section */
@@ -33,6 +34,7 @@
 /* Begin PBXFileReference section */
 		1676546237DBFF9E07BBC1F4 /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrap.swift; sourceTree = "<group>"; };
 		1DA8904A791E72EBF7E29F14 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		349F708E6DAA8EB479240F62 /* ConversoxAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversoxAPI.swift; sourceTree = "<group>"; };
 		4E522D532D90149AED5D8B00 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		71D6200BC03548C846D3A4DB /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		7E450147CA9706F3D4808DD2 /* ConversoxMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversoxMacApp.swift; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 		EF8BBB6C2F673A89CDDF031A /* Network */ = {
 			isa = PBXGroup;
 			children = (
+				349F708E6DAA8EB479240F62 /* ConversoxAPI.swift */,
 				E6EF76195C2D2BA61AF3AD51 /* DateParser.swift */,
 				7F3FF9F715201BDD97A08E1B /* HTTPClient.swift */,
 			);
@@ -270,6 +273,7 @@
 				15CEE6FA5D57D73E0E0AC5AD /* ChatListView.swift in Sources */,
 				C89971B7B7CD4D6EF93AC48F /* ChatsService.swift in Sources */,
 				0C909786F05C957BB2444AA7 /* ChatsViewModel.swift in Sources */,
+				E266CF9900E1901C0C4CA2FB /* ConversoxAPI.swift in Sources */,
 				7CC1BAB3104A36EF369B0582 /* ConversoxMacApp.swift in Sources */,
 				AB24AFB42D7E1EF14F4E878D /* ConversoxTokens.swift in Sources */,
 				38F4890232DF2C390FE88E7A /* DateParser.swift in Sources */,
