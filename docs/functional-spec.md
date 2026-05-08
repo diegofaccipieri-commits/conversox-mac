@@ -641,7 +641,15 @@ Poll response:
 - Deeplinks.
 - APNs push.
 
-## 25. Implementation order
+## 25. Engineer-ready endpoint contracts
+
+The detailed HTTP contracts, literal backend error strings and client handling rules live in `docs/endpoint-contracts.md`.
+
+## 26. Coverage tracking
+
+Current implementation coverage lives in `docs/spec-coverage.md`.
+
+## 27. Implementation order
 
 1. `ConversoxAPI` actor with X-API-Key, tenant routing and error mapping.
 2. Polling task with cancellation and backoff.

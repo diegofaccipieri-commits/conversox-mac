@@ -45,3 +45,7 @@ Checklist detalhado para coletar no servidor: `docs/o-que-buscar-no-servidor.md`
 Indice das specs do projeto: `docs/spec-index.md`.
 
 Spec funcional completa: `docs/functional-spec.md`.
+
+Contratos HTTP detalhados: `docs/endpoint-contracts.md`.
+
+Cobertura atual contra as specs: `docs/spec-coverage.md`.
