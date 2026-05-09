@@ -82,6 +82,39 @@ final class MessageStore {
     }
 
     @discardableResult
+    func updateMessageText(chatID: String, messageID: String, text: String) -> [Message] {
+        guard var entry = entries[chatID] else { return [] }
+        if let index = entry.messages.firstIndex(where: { $0.id == messageID || $0.keyID == messageID }) {
+            entry.messages[index] = entry.messages[index].withUpdatedText(text)
+            entry.lastAccess = Date()
+            entries[chatID] = entry
+        }
+        return entry.messages
+    }
+
+    @discardableResult
+    func markMessageDeleted(chatID: String, messageID: String) -> [Message] {
+        guard var entry = entries[chatID] else { return [] }
+        if let index = entry.messages.firstIndex(where: { $0.id == messageID || $0.keyID == messageID }) {
+            entry.messages[index] = entry.messages[index].withDeletedState()
+            entry.lastAccess = Date()
+            entries[chatID] = entry
+        }
+        return entry.messages
+    }
+
+    @discardableResult
+    func toggleReaction(chatID: String, messageID: String, reaction: Message.Reaction) -> [Message] {
+        guard var entry = entries[chatID] else { return [] }
+        if let index = entry.messages.firstIndex(where: { $0.id == messageID || $0.keyID == messageID }) {
+            entry.messages[index] = entry.messages[index].withReaction(reaction)
+            entry.lastAccess = Date()
+            entries[chatID] = entry
+        }
+        return entry.messages
+    }
+
+    @discardableResult
     func updateMediaURL(chatID: String, messageID: String, mediaURL: String) -> [Message] {
         guard var entry = entries[chatID] else { return [] }
         if let index = entry.messages.firstIndex(where: { $0.id == messageID || $0.keyID == messageID }) {

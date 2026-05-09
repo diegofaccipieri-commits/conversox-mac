@@ -232,6 +232,87 @@ struct FetchMediaResponse: Decodable, Sendable {
     }
 }
 
+struct ChatNote: Decodable, Identifiable, Sendable {
+    let id: String
+    let text: String
+    let author: String?
+    let authorEmail: String?
+    let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case text
+        case author
+        case authorEmail = "author_email"
+        case createdAt = "created_at"
+    }
+}
+
+private struct NotesListResponse: Decodable, Sendable {
+    let ok: Bool?
+    let notes: [ChatNote]
+}
+
+private struct NoteCreateResponse: Decodable, Sendable {
+    let ok: Bool
+    let note: ChatNote?
+    let error: String?
+}
+
+private struct NoteCreateRequest: Encodable, Sendable {
+    let jid: String
+    let connectionID: String
+    let text: String
+
+    enum CodingKeys: String, CodingKey {
+        case jid
+        case connectionID = "connection_id"
+        case text
+    }
+}
+
+private struct NoteDeleteRequest: Encodable, Sendable {
+    let id: String
+    let methodOverride: String = "DELETE"
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case methodOverride = "_method"
+    }
+}
+
+private struct StickerPackSummary: Decodable, Sendable {
+    let id: String
+    let name: String?
+}
+
+private struct StickerPacksResponse: Decodable, Sendable {
+    let ok: Bool?
+    let packs: [StickerPackSummary]
+}
+
+private struct StickerAsset: Decodable, Sendable, Identifiable {
+    let id: String
+    let packID: String?
+    let url: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case packID = "pack_id"
+        case url
+    }
+}
+
+private struct StickersResponse: Decodable, Sendable {
+    let ok: Bool?
+    let stickers: [StickerAsset]
+}
+
+private struct SimpleOKResponse: Decodable, Sendable {
+    let ok: Bool
+    let error: String?
+}
+
 private struct ContactsDirectoryResponse: Decodable, Sendable {
     let ok: Bool?
     let contacts: [ContactsDirectoryItem]
@@ -377,6 +458,52 @@ struct ChatsService {
         )
     }
 
+    func editMessage(session: PersistedSession, chat: Chat, messageID: String, text: String) async throws {
+        try await performAction(
+            session: session,
+            chat: chat,
+            action: "edit",
+            payload: [
+                "message_id": messageID,
+                "text": text
+            ]
+        )
+    }
+
+    func deleteMessage(session: PersistedSession, chat: Chat, messageID: String, deleteScope: String) async throws {
+        try await performAction(
+            session: session,
+            chat: chat,
+            action: "delete",
+            payload: [
+                "message_id": messageID,
+                "delete_scope": deleteScope
+            ]
+        )
+    }
+
+    func reactToMessage(session: PersistedSession, chat: Chat, messageID: String, emoji: String) async throws {
+        try await performAction(
+            session: session,
+            chat: chat,
+            action: "react",
+            payload: [
+                "message_id": messageID,
+                "emoji": emoji
+            ]
+        )
+    }
+
+    func forwardMessage(
+        session: PersistedSession,
+        sourceMessage: Message,
+        targetChat: Chat
+    ) async throws {
+        let text = sourceMessage.text.isEmpty ? "[\(sourceMessage.type)]" : sourceMessage.text
+        let forwarded = "⤳ Encaminhado\n\(text)"
+        try await sendMessage(session: session, chat: targetChat, text: forwarded, quotedMessageID: nil, note: false)
+    }
+
     func sendMessage(
         session: PersistedSession,
         chat: Chat,
@@ -414,6 +541,100 @@ struct ChatsService {
 
         if !response.ok {
             throw ConversoxError.backend(httpStatus: 502, backendError: response.error ?? "send_failed", rawBody: nil)
+        }
+    }
+
+    func fetchNotes(session: PersistedSession, chat: Chat) async throws -> [ChatNote] {
+        let query = [
+            URLQueryItem(name: "jid", value: chat.jid),
+            URLQueryItem(name: "connection_id", value: chat.connectionID)
+        ]
+        let response: ConversoxHTTPResponse<NotesListResponse> = try await api.getJSON(
+            .customPrefixed("/notes.php"),
+            queryItems: query,
+            session: session,
+            timeout: 20
+        )
+        return response.value.notes
+    }
+
+    func createNote(session: PersistedSession, chat: Chat, text: String) async throws -> ChatNote? {
+        let response: ConversoxHTTPResponse<NoteCreateResponse> = try await api.postJSON(
+            .customPrefixed("/notes.php"),
+            body: NoteCreateRequest(jid: chat.jid, connectionID: chat.connectionID, text: text),
+            session: session,
+            timeout: 20
+        )
+        guard response.value.ok else {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "note_create_failed", rawBody: nil)
+        }
+        return response.value.note
+    }
+
+    func deleteNote(session: PersistedSession, noteID: String) async throws {
+        let response: ConversoxHTTPResponse<SimpleOKResponse> = try await api.postJSON(
+            .customPrefixed("/notes.php"),
+            body: NoteDeleteRequest(id: noteID),
+            session: session,
+            timeout: 20
+        )
+        guard response.value.ok else {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "note_delete_failed", rawBody: nil)
+        }
+    }
+
+    func fetchStickerPackIDs(session: PersistedSession) async throws -> [String] {
+        let response: ConversoxHTTPResponse<StickerPacksResponse> = try await api.getJSON(
+            .customPrefixed("/stickers.php"),
+            queryItems: [URLQueryItem(name: "action", value: "packs")],
+            session: session,
+            timeout: 20
+        )
+        return response.value.packs.map(\.id)
+    }
+
+    func fetchStickers(session: PersistedSession, packID: String) async throws -> [String] {
+        let response: ConversoxHTTPResponse<StickersResponse> = try await api.getJSON(
+            .customPrefixed("/stickers.php"),
+            queryItems: [
+                URLQueryItem(name: "action", value: "stickers"),
+                URLQueryItem(name: "pack_id", value: packID)
+            ],
+            session: session,
+            timeout: 20
+        )
+        return response.value.stickers.map(\.id)
+    }
+
+    func sendSticker(session: PersistedSession, chat: Chat, stickerID: String) async throws {
+        let response: ConversoxHTTPResponse<SimpleOKResponse> = try await api.postJSON(
+            .customPrefixed("/stickers.php"),
+            body: [
+                "action": "send",
+                "jid": chat.jid,
+                "connection_id": chat.connectionID,
+                "sticker_id": stickerID
+            ],
+            session: session,
+            timeout: 20
+        )
+        guard response.value.ok else {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "send_sticker_failed", rawBody: nil)
+        }
+    }
+
+    func saveStickerFromMedia(session: PersistedSession, mediaURL: String) async throws {
+        let response: ConversoxHTTPResponse<SimpleOKResponse> = try await api.postJSON(
+            .customPrefixed("/stickers.php"),
+            body: [
+                "action": "save",
+                "media_url": mediaURL
+            ],
+            session: session,
+            timeout: 30
+        )
+        guard response.value.ok else {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "save_sticker_failed", rawBody: nil)
         }
     }
 

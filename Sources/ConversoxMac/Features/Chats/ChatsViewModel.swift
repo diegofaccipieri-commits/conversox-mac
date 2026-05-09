@@ -9,6 +9,12 @@ enum SidebarTab: String, CaseIterable, Identifiable {
     var title: String { self == .chats ? "Chats" : "Contatos" }
 }
 
+struct CXToastState: Identifiable, Sendable {
+    let id = UUID()
+    let message: String
+    let isError: Bool
+}
+
 @MainActor
 final class ChatsViewModel: ObservableObject {
     @Published private(set) var chats: [Chat] = []
@@ -25,6 +31,13 @@ final class ChatsViewModel: ObservableObject {
     @Published var composerAttachments: [ComposerAttachment] = []
     @Published private(set) var isSendingMessage = false
     @Published var isInternalNotesMode = false
+    @Published var forwardedMessage: Message?
+    @Published var selectedForwardTargetChatID: String?
+    @Published private(set) var notesByChat: [String: [ChatNote]] = [:]
+    @Published var noteDraft = ""
+    @Published private(set) var stickerPackIDs: [String] = []
+    @Published private(set) var stickerIDs: [String] = []
+    @Published var selectedStickerPackID: String?
 
     @Published var searchText = "" {
         didSet { resetChatPagination() }
@@ -59,6 +72,9 @@ final class ChatsViewModel: ObservableObject {
         "Recebido, obrigado! Vamos seguir com a análise.",
         "Consegue me confirmar esse ponto para eu avançar?"
     ]
+    @Published var quickReplyDraft = ""
+    @Published private(set) var toast: CXToastState?
+    @Published private(set) var isBootstrapping = true
 
     private let chatsService = ChatsService()
     private let chatStore = ChatStore()
@@ -102,10 +118,15 @@ final class ChatsViewModel: ObservableObject {
             }
             await loadQuickRepliesIfNeeded()
             updateBadge()
+            isBootstrapping = false
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+            isBootstrapping = false
         } catch {
             errorMessage = "Falha ao carregar chats."
+            showToast("Falha ao carregar chats.", isError: true)
+            isBootstrapping = false
         }
     }
 
@@ -117,6 +138,7 @@ final class ChatsViewModel: ObservableObject {
             messageStore.setMessages(response.messages, for: chatID)
             syncMessages(for: chatID)
             hasOlderByChat[chatID] = response.hasOlder ?? false
+            await loadNotes(for: chatID)
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
         } catch {
@@ -166,6 +188,16 @@ final class ChatsViewModel: ObservableObject {
         replyTarget = nil
     }
 
+    func openForward(_ message: Message) {
+        forwardedMessage = message
+        selectedForwardTargetChatID = nil
+    }
+
+    func closeForward() {
+        forwardedMessage = nil
+        selectedForwardTargetChatID = nil
+    }
+
     func toggleInternalNotesMode() {
         isInternalNotesMode.toggle()
     }
@@ -194,6 +226,116 @@ final class ChatsViewModel: ObservableObject {
             }
         } catch {
             contactsDirectory = chatStore.contactsDirectory(searchText: contactSearchText, channel: selectedChannel)
+        }
+    }
+
+    func loadNotes(for chatID: String) async {
+        guard let session = currentSession,
+              let chat = chatStore.chat(for: chatID) else { return }
+        do {
+            let notes = try await chatsService.fetchNotes(session: session, chat: chat)
+            notesByChat[chatID] = notes
+        } catch {
+            notesByChat[chatID] = notesByChat[chatID] ?? []
+        }
+    }
+
+    func addNote(for chatID: String) async {
+        guard let session = currentSession,
+              let chat = chatStore.chat(for: chatID) else { return }
+        let text = noteDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        do {
+            _ = try await chatsService.createNote(session: session, chat: chat, text: text)
+            noteDraft = ""
+            await loadNotes(for: chatID)
+            showToast("Nota salva.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao salvar nota."
+            showToast("Falha ao salvar nota.", isError: true)
+        }
+    }
+
+    func removeNote(noteID: String, chatID: String) async {
+        guard let session = currentSession else { return }
+        do {
+            try await chatsService.deleteNote(session: session, noteID: noteID)
+            await loadNotes(for: chatID)
+            showToast("Nota removida.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao remover nota."
+            showToast("Falha ao remover nota.", isError: true)
+        }
+    }
+
+    func loadStickerPacks() async {
+        guard let session = currentSession else { return }
+        do {
+            stickerPackIDs = try await chatsService.fetchStickerPackIDs(session: session)
+            if selectedStickerPackID == nil {
+                selectedStickerPackID = stickerPackIDs.first
+            }
+            if let selectedStickerPackID {
+                await loadStickers(packID: selectedStickerPackID)
+            }
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao carregar packs de stickers."
+            showToast("Falha ao carregar packs de stickers.", isError: true)
+        }
+    }
+
+    func loadStickers(packID: String) async {
+        guard let session = currentSession else { return }
+        do {
+            selectedStickerPackID = packID
+            stickerIDs = try await chatsService.fetchStickers(session: session, packID: packID)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao carregar stickers."
+            showToast("Falha ao carregar stickers.", isError: true)
+        }
+    }
+
+    func sendSticker(stickerID: String) async {
+        guard let session = currentSession,
+              let chat = selectedChat else { return }
+        do {
+            try await chatsService.sendSticker(session: session, chat: chat, stickerID: stickerID)
+            await loadMessages(for: chat.id)
+            showToast("Sticker enviado.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao enviar sticker."
+            showToast("Falha ao enviar sticker.", isError: true)
+        }
+    }
+
+    func saveStickerFromMessage(_ message: Message) async {
+        guard let session = currentSession,
+              let mediaURL = message.mediaURL else { return }
+        do {
+            try await chatsService.saveStickerFromMedia(session: session, mediaURL: mediaURL)
+            await loadStickerPacks()
+            showToast("Sticker salvo.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao salvar sticker."
+            showToast("Falha ao salvar sticker.", isError: true)
         }
     }
 
@@ -244,18 +386,23 @@ final class ChatsViewModel: ObservableObject {
         let backupAttachments = composerAttachments
 
         do {
+            var outboundText = trimmedText
+            if queuedAttachments.isEmpty, let expanded = resolveShortcutIfNeeded(trimmedText) {
+                outboundText = expanded
+            }
+
             if queuedAttachments.isEmpty {
                 try await chatsService.sendMessage(
                     session: session,
                     chat: chat,
-                    text: trimmedText,
+                    text: outboundText,
                     quotedMessageID: replyID,
                     note: isInternalNotesMode
                 )
             } else {
                 for (index, attachment) in queuedAttachments.enumerated() {
                     try validateAttachmentSize(attachment)
-                    let textForThisMessage = index == 0 ? trimmedText : ""
+                    let textForThisMessage = index == 0 ? outboundText : ""
                     let replyForThisMessage = index == 0 ? replyID : nil
 
                     try await chatsService.sendMessage(
@@ -275,13 +422,16 @@ final class ChatsViewModel: ObservableObject {
 
             await loadMessages(for: chat.id)
             await reloadChats()
+            showToast("Mensagem enviada.", isError: false)
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
             draftMessage = backupDraft
             replyTarget = backupReply
             composerAttachments = backupAttachments
         } catch {
             errorMessage = "Falha ao enviar mensagem."
+            showToast("Falha ao enviar mensagem.", isError: true)
             draftMessage = backupDraft
             replyTarget = backupReply
             composerAttachments = backupAttachments
@@ -304,6 +454,86 @@ final class ChatsViewModel: ObservableObject {
             errorMessage = error.userMessage
         } catch {
             errorMessage = "Falha ao carregar mídia."
+        }
+    }
+
+    func editMessage(chatID: String, message: Message, newText: String) async {
+        guard let session = currentSession,
+              let chat = chatStore.chat(for: chatID) else { return }
+        let text = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        do {
+            try await chatsService.editMessage(session: session, chat: chat, messageID: message.id, text: text)
+            messagesByChat[chatID] = messageStore.updateMessageText(chatID: chatID, messageID: message.id, text: text)
+            showToast("Mensagem editada.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao editar mensagem."
+            showToast("Falha ao editar mensagem.", isError: true)
+        }
+    }
+
+    func deleteMessage(chatID: String, message: Message, forEveryone: Bool) async {
+        guard let session = currentSession,
+              let chat = chatStore.chat(for: chatID) else { return }
+        do {
+            try await chatsService.deleteMessage(
+                session: session,
+                chat: chat,
+                messageID: message.id,
+                deleteScope: forEveryone ? "for_everyone" : "for_me"
+            )
+            messagesByChat[chatID] = messageStore.markMessageDeleted(chatID: chatID, messageID: message.id)
+            showToast("Mensagem apagada.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao apagar mensagem."
+            showToast("Falha ao apagar mensagem.", isError: true)
+        }
+    }
+
+    func reactToMessage(chatID: String, message: Message, emoji: String) async {
+        guard let session = currentSession,
+              let chat = chatStore.chat(for: chatID) else { return }
+        do {
+            try await chatsService.reactToMessage(session: session, chat: chat, messageID: message.id, emoji: emoji)
+            let reaction = Message.Reaction(emoji: emoji, jid: session.user.email, name: session.user.name)
+            messagesByChat[chatID] = messageStore.toggleReaction(chatID: chatID, messageID: message.id, reaction: reaction)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao reagir à mensagem."
+            showToast("Falha ao reagir à mensagem.", isError: true)
+        }
+    }
+
+    func retryMessage(chatID: String, message: Message) async {
+        guard message.status == "failed" else { return }
+        draftMessage = message.text
+        await sendMessage()
+    }
+
+    func forwardMessage() async {
+        guard let source = forwardedMessage,
+              let targetChatID = selectedForwardTargetChatID,
+              let targetChat = chatStore.chat(for: targetChatID),
+              let session = currentSession else { return }
+
+        do {
+            try await chatsService.forwardMessage(session: session, sourceMessage: source, targetChat: targetChat)
+            closeForward()
+            showToast("Mensagem encaminhada.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao encaminhar mensagem."
+            showToast("Falha ao encaminhar mensagem.", isError: true)
         }
     }
 
@@ -367,10 +597,13 @@ final class ChatsViewModel: ObservableObject {
         do {
             try await chatsService.transfer(session: session, chat: chat, target: clean)
             await reloadChats()
+            showToast("Conversa transferida.", isError: false)
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
         } catch {
             errorMessage = "Falha ao transferir conversa."
+            showToast("Falha ao transferir conversa.", isError: true)
         }
     }
 
@@ -382,11 +615,14 @@ final class ChatsViewModel: ObservableObject {
             if let inviteURL, !inviteURL.isEmpty {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(inviteURL, forType: .string)
+                showToast("Link de convite copiado.", isError: false)
             }
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
         } catch {
             errorMessage = "Falha ao obter link de convite do grupo."
+            showToast("Falha ao obter link de convite.", isError: true)
         }
     }
 
@@ -394,6 +630,22 @@ final class ChatsViewModel: ObservableObject {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         draftMessage = text
         await sendMessage()
+    }
+
+    func addQuickReply() {
+        let clean = quickReplyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        if !quickReplies.contains(clean) {
+            quickReplies.append(clean)
+            quickReplies.sort()
+            showToast("Quick reply adicionada.", isError: false)
+        }
+        quickReplyDraft = ""
+    }
+
+    func removeQuickReply(_ value: String) {
+        quickReplies.removeAll { $0 == value }
+        showToast("Quick reply removida.", isError: false)
     }
 
     func startRealtime() async {
@@ -430,6 +682,13 @@ final class ChatsViewModel: ObservableObject {
         isSendingMessage = false
         isInternalNotesMode = false
         didLoadQuickReplies = false
+        forwardedMessage = nil
+        selectedForwardTargetChatID = nil
+        notesByChat = [:]
+        noteDraft = ""
+        stickerPackIDs = []
+        stickerIDs = []
+        selectedStickerPackID = nil
 
         pollCursor = 1
         pollSeq = nil
@@ -542,6 +801,25 @@ final class ChatsViewModel: ObservableObject {
     private func validateAttachmentSize(_ attachment: ComposerAttachment) throws {
         guard attachment.data.count <= maxAttachmentBytes else {
             throw ConversoxError.backend(httpStatus: 413, backendError: "file_too_large", rawBody: nil)
+        }
+    }
+
+    private func resolveShortcutIfNeeded(_ text: String) -> String? {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard clean.hasPrefix("/") else { return nil }
+        let token = String(clean.dropFirst()).lowercased()
+        guard !token.isEmpty else { return nil }
+        return quickReplies.first { $0.lowercased().contains(token) }
+    }
+
+    private func showToast(_ message: String, isError: Bool) {
+        toast = CXToastState(message: message, isError: isError)
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard let self else { return }
+            if self.toast?.message == message {
+                self.toast = nil
+            }
         }
     }
 }

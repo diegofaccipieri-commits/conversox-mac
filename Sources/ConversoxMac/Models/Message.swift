@@ -1,6 +1,12 @@
 import Foundation
 
 struct Message: Codable, Identifiable, Sendable {
+    struct Reaction: Codable, Hashable, Sendable {
+        let emoji: String
+        let jid: String?
+        let name: String?
+    }
+
     let id: String
     let keyID: String?
     let chatID: String
@@ -19,6 +25,8 @@ struct Message: Codable, Identifiable, Sendable {
     let quotedText: String?
     let isDeleted: Bool
     let isForwarded: Bool
+    let editedAt: String?
+    let reactions: [Reaction]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -44,6 +52,8 @@ struct Message: Codable, Identifiable, Sendable {
         case isDeleted = "is_deleted"
         case deletedAt = "deleted_at"
         case isForwarded = "forwarded"
+        case editedAt = "edited_at"
+        case reactions
     }
 
     enum QuotedCodingKeys: String, CodingKey {
@@ -71,7 +81,9 @@ struct Message: Codable, Identifiable, Sendable {
         quotedMessageID: String?,
         quotedText: String?,
         isDeleted: Bool,
-        isForwarded: Bool
+        isForwarded: Bool,
+        editedAt: String?,
+        reactions: [Reaction]
     ) {
         self.id = id
         self.keyID = keyID
@@ -91,6 +103,8 @@ struct Message: Codable, Identifiable, Sendable {
         self.quotedText = quotedText
         self.isDeleted = isDeleted
         self.isForwarded = isForwarded
+        self.editedAt = editedAt
+        self.reactions = reactions
     }
 
     init(from decoder: Decoder) throws {
@@ -144,6 +158,8 @@ struct Message: Codable, Identifiable, Sendable {
         let explicitDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
         let deletedAt = try container.decodeIfPresent(String.self, forKey: .deletedAt)
         isDeleted = explicitDeleted || deletedAt != nil
+        editedAt = try container.decodeIfPresent(String.self, forKey: .editedAt)
+        reactions = try container.decodeIfPresent([Reaction].self, forKey: .reactions) ?? []
     }
 
     func withChatID(_ chatID: String) -> Message {
@@ -165,7 +181,9 @@ struct Message: Codable, Identifiable, Sendable {
             quotedMessageID: quotedMessageID,
             quotedText: quotedText,
             isDeleted: isDeleted,
-            isForwarded: isForwarded
+            isForwarded: isForwarded,
+            editedAt: editedAt,
+            reactions: reactions
         )
     }
 
@@ -188,7 +206,91 @@ struct Message: Codable, Identifiable, Sendable {
             quotedMessageID: quotedMessageID,
             quotedText: quotedText,
             isDeleted: isDeleted,
-            isForwarded: isForwarded
+            isForwarded: isForwarded,
+            editedAt: editedAt,
+            reactions: reactions
+        )
+    }
+
+    func withUpdatedText(_ text: String) -> Message {
+        Message(
+            id: id,
+            keyID: keyID,
+            chatID: chatID,
+            connectionID: connectionID,
+            senderName: senderName,
+            text: text,
+            sentAt: sentAt,
+            fromMe: fromMe,
+            type: type,
+            status: status,
+            mediaURL: mediaURL,
+            mimeType: mimeType,
+            fileName: fileName,
+            duration: duration,
+            quotedMessageID: quotedMessageID,
+            quotedText: quotedText,
+            isDeleted: isDeleted,
+            isForwarded: isForwarded,
+            editedAt: Date().ISO8601Format(),
+            reactions: reactions
+        )
+    }
+
+    func withDeletedState() -> Message {
+        Message(
+            id: id,
+            keyID: keyID,
+            chatID: chatID,
+            connectionID: connectionID,
+            senderName: senderName,
+            text: text,
+            sentAt: sentAt,
+            fromMe: fromMe,
+            type: type,
+            status: status,
+            mediaURL: mediaURL,
+            mimeType: mimeType,
+            fileName: fileName,
+            duration: duration,
+            quotedMessageID: quotedMessageID,
+            quotedText: quotedText,
+            isDeleted: true,
+            isForwarded: isForwarded,
+            editedAt: editedAt,
+            reactions: reactions
+        )
+    }
+
+    func withReaction(_ reaction: Reaction) -> Message {
+        var next = reactions
+        if let index = next.firstIndex(where: { $0.jid == reaction.jid && $0.emoji == reaction.emoji }) {
+            next.remove(at: index)
+        } else {
+            next.append(reaction)
+        }
+
+        return Message(
+            id: id,
+            keyID: keyID,
+            chatID: chatID,
+            connectionID: connectionID,
+            senderName: senderName,
+            text: text,
+            sentAt: sentAt,
+            fromMe: fromMe,
+            type: type,
+            status: status,
+            mediaURL: mediaURL,
+            mimeType: mimeType,
+            fileName: fileName,
+            duration: duration,
+            quotedMessageID: quotedMessageID,
+            quotedText: quotedText,
+            isDeleted: isDeleted,
+            isForwarded: isForwarded,
+            editedAt: editedAt,
+            reactions: next
         )
     }
 
@@ -212,6 +314,8 @@ struct Message: Codable, Identifiable, Sendable {
         try container.encodeIfPresent(quotedText, forKey: .quotedText)
         try container.encode(isDeleted, forKey: .isDeleted)
         try container.encode(isForwarded, forKey: .isForwarded)
+        try container.encodeIfPresent(editedAt, forKey: .editedAt)
+        try container.encode(reactions, forKey: .reactions)
     }
 }
 

@@ -138,7 +138,9 @@ struct ConversoxMacTests {
                 quotedMessageID: nil,
                 quotedText: nil,
                 isDeleted: false,
-                isForwarded: false
+                isForwarded: false,
+                editedAt: nil,
+                reactions: []
             ),
             Message(
                 id: "msg-1-duplicate",
@@ -158,7 +160,9 @@ struct ConversoxMacTests {
                 quotedMessageID: nil,
                 quotedText: nil,
                 isDeleted: false,
-                isForwarded: false
+                isForwarded: false,
+                editedAt: nil,
+                reactions: []
             )
         ]
 

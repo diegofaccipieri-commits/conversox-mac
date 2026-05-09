@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -8,9 +9,24 @@ struct MessageThreadView: View {
 
     @State private var showFileImporter = false
     @State private var isDropTargeted = false
+    @State private var showForwardSheet = false
+    @State private var editingMessage: Message?
+    @State private var editedText = ""
+    @State private var showEmojiPicker = false
+    @State private var showStickerPicker = false
+    @State private var isRecording = false
+    @State private var audioRecorder: AVAudioRecorder?
+    @State private var recordingURL: URL?
+
+    private let quickReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+    private let quickEmojis = ["😀", "😄", "😂", "😍", "🙏", "👍", "🎉", "🤝", "✅", "📌", "🫶", "🔥"]
 
     private var messages: [Message] {
         vm.messagesByChat[chatID] ?? []
+    }
+
+    private var notes: [ChatNote] {
+        vm.notesByChat[chatID] ?? []
     }
 
     var body: some View {
@@ -48,9 +64,33 @@ struct MessageThreadView: View {
                                 CXMessageBubbleView(
                                     message: message,
                                     mediaURL: vm.resolvedMediaURL(message.mediaURL),
+                                    quickReactions: quickReactions,
                                     onReply: { vm.setReplyTarget(message) },
                                     onFetchMedia: {
                                         Task { await vm.fetchMedia(for: chatID, message: message) }
+                                    },
+                                    onEdit: {
+                                        editingMessage = message
+                                        editedText = message.text
+                                    },
+                                    onDeleteForMe: {
+                                        Task { await vm.deleteMessage(chatID: chatID, message: message, forEveryone: false) }
+                                    },
+                                    onDeleteForEveryone: {
+                                        Task { await vm.deleteMessage(chatID: chatID, message: message, forEveryone: true) }
+                                    },
+                                    onReact: { emoji in
+                                        Task { await vm.reactToMessage(chatID: chatID, message: message, emoji: emoji) }
+                                    },
+                                    onForward: {
+                                        vm.openForward(message)
+                                        showForwardSheet = true
+                                    },
+                                    onRetry: {
+                                        Task { await vm.retryMessage(chatID: chatID, message: message) }
+                                    },
+                                    onSaveSticker: {
+                                        Task { await vm.saveStickerFromMessage(message) }
                                     }
                                 )
                                 .id(message.id)
@@ -101,13 +141,94 @@ struct MessageThreadView: View {
         .onPasteCommand(of: [.image]) { providers in
             handlePaste(providers: providers)
         }
+        .sheet(isPresented: $showForwardSheet, onDismiss: { vm.closeForward() }) {
+            forwardSheet
+        }
+        .alert("Editar mensagem", isPresented: Binding(
+            get: { editingMessage != nil },
+            set: { if !$0 { editingMessage = nil } }
+        )) {
+            TextField("Texto", text: $editedText)
+            Button("Cancelar", role: .cancel) {
+                editingMessage = nil
+            }
+            Button("Salvar") {
+                if let editingMessage {
+                    Task { await vm.editMessage(chatID: chatID, message: editingMessage, newText: editedText) }
+                }
+                self.editingMessage = nil
+            }
+        } message: {
+            Text("Atualize o conteúdo da mensagem")
+        }
         .task(id: chatID) {
             await vm.loadMessages(for: chatID)
         }
     }
 
+    private var forwardSheet: some View {
+        VStack(alignment: .leading, spacing: CXSize.s3) {
+            Text("Encaminhar mensagem")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(CXColor.text)
+
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(vm.chats) { chat in
+                        Button {
+                            vm.selectedForwardTargetChatID = chat.id
+                        } label: {
+                            HStack(spacing: 8) {
+                                CXAvatarView(title: chat.title, size: 28)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(chat.title)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(CXColor.text)
+                                    Text(chat.connectionID)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(CXColor.textMute)
+                                }
+                                Spacer()
+                                if vm.selectedForwardTargetChatID == chat.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(CXColor.accent)
+                                }
+                            }
+                            .padding(8)
+                            .background(CXColor.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(vm.selectedForwardTargetChatID == chat.id ? CXColor.accent : CXColor.borderLight, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancelar") {
+                    showForwardSheet = false
+                    vm.closeForward()
+                }
+                Button("Encaminhar") {
+                    Task { await vm.forwardMessage() }
+                    showForwardSheet = false
+                }
+                .disabled(vm.selectedForwardTargetChatID == nil)
+            }
+        }
+        .padding(CXSize.s4)
+        .frame(minWidth: 420, minHeight: 420)
+        .background(CXColor.surface2)
+    }
+
     private var composer: some View {
         VStack(alignment: .leading, spacing: CXSize.s2) {
+            notesPanel
+
             if let reply = vm.replyTarget {
                 HStack(spacing: CXSize.s2) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -175,6 +296,18 @@ struct MessageThreadView: View {
                 CXIconButton(systemName: vm.isInternalNotesMode ? "note.text" : "note.text.badge.plus") {
                     vm.toggleInternalNotesMode()
                 }
+                CXIconButton(systemName: "face.smiling") {
+                    showEmojiPicker.toggle()
+                    showStickerPicker = false
+                }
+                CXIconButton(systemName: "square.grid.2x2") {
+                    showStickerPicker.toggle()
+                    showEmojiPicker = false
+                    Task { await vm.loadStickerPacks() }
+                }
+                CXIconButton(systemName: isRecording ? "stop.circle.fill" : "mic.fill") {
+                    toggleRecording()
+                }
 
                 TextField("Digite uma mensagem", text: $vm.draftMessage, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -220,9 +353,116 @@ struct MessageThreadView: View {
                 .buttonStyle(.plain)
                 .disabled(sendDisabled)
             }
+
+            if showEmojiPicker {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(quickEmojis, id: \.self) { emoji in
+                            Button(emoji) {
+                                vm.draftMessage += emoji
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 20))
+                        }
+                    }
+                }
+                .padding(8)
+                .background(CXColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
+            }
+
+            if showStickerPicker {
+                VStack(alignment: .leading, spacing: 8) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(vm.stickerPackIDs, id: \.self) { packID in
+                                Button(packID) {
+                                    Task { await vm.loadStickers(packID: packID) }
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 10, weight: .semibold))
+                                .padding(.horizontal, 8)
+                                .frame(height: 22)
+                                .background(vm.selectedStickerPackID == packID ? CXColor.accentBg : CXColor.surface)
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(vm.selectedStickerPackID == packID ? CXColor.accent : CXColor.borderLight, lineWidth: 1))
+                            }
+                        }
+                    }
+
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 48)), count: 6), spacing: 8) {
+                        ForEach(vm.stickerIDs, id: \.self) { stickerID in
+                            Button("🙂") {
+                                Task { await vm.sendSticker(stickerID: stickerID) }
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 20))
+                            .frame(height: 40)
+                            .frame(maxWidth: .infinity)
+                            .background(CXColor.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+                .padding(8)
+                .background(CXColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
+            }
         }
         .padding(CXSize.s3)
         .background(CXColor.composer)
+    }
+
+    private var notesPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !notes.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(notes) { note in
+                            HStack(spacing: 6) {
+                                Text(note.text)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .lineLimit(1)
+                                if let author = note.author {
+                                    Text(author)
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(CXColor.textMute)
+                                }
+                                Button {
+                                    Task { await vm.removeNote(noteID: note.id, chatID: chatID) }
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 8)
+                            .frame(height: 24)
+                            .background(CXColor.note.opacity(0.2))
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField("Adicionar nota interna", text: $vm.noteDraft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .padding(.horizontal, 8)
+                    .frame(height: 28)
+                    .background(CXColor.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Button("Salvar") {
+                    Task { await vm.addNote(for: chatID) }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(CXColor.warning)
+            }
+        }
     }
 
     private var sendDisabled: Bool {
@@ -309,13 +549,51 @@ struct MessageThreadView: View {
         default: return "[mensagem]"
         }
     }
+
+    private func toggleRecording() {
+        if isRecording {
+            audioRecorder?.stop()
+            isRecording = false
+            if let url = recordingURL {
+                vm.attachFile(url: url)
+            }
+            return
+        }
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cx-ptt-\(UUID().uuidString).m4a")
+
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 12_000,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
+        ]
+
+        do {
+            audioRecorder = try AVAudioRecorder(url: tempURL, settings: settings)
+            audioRecorder?.record()
+            recordingURL = tempURL
+            isRecording = true
+        } catch {
+            vm.errorMessage = "Falha ao iniciar gravação de áudio."
+        }
+    }
 }
 
 struct CXMessageBubbleView: View {
     let message: Message
     let mediaURL: URL?
+    let quickReactions: [String]
     let onReply: () -> Void
     let onFetchMedia: () -> Void
+    let onEdit: () -> Void
+    let onDeleteForMe: () -> Void
+    let onDeleteForEveryone: () -> Void
+    let onReact: (String) -> Void
+    let onForward: () -> Void
+    let onRetry: () -> Void
+    let onSaveSticker: () -> Void
 
     var body: some View {
         HStack {
@@ -354,10 +632,29 @@ struct CXMessageBubbleView: View {
                     }
                 }
 
+                if !message.reactions.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(Array(Set(message.reactions.map(\.emoji))), id: \.self) { emoji in
+                            Text(emoji)
+                                .font(.system(size: 11))
+                                .padding(.horizontal, 6)
+                                .frame(height: 20)
+                                .background(CXColor.surface2)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+
                 HStack(spacing: 5) {
                     if message.isForwarded {
                         Text("Encaminhada")
                             .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
+                    }
+                    if message.editedAt != nil {
+                        Text("editada")
+                            .font(.system(size: 10, weight: .medium))
+                            .italic()
                             .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
                     }
                     Spacer(minLength: 4)
@@ -383,14 +680,33 @@ struct CXMessageBubbleView: View {
             .shadow(color: .black.opacity(0.22), radius: 2, x: 0, y: 1)
             .contextMenu {
                 Button("Responder") { onReply() }
-                if !message.text.isEmpty {
-                    Button("Copiar") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(message.text, forType: .string)
+                if !message.isDeleted {
+                    Button("Encaminhar") { onForward() }
+                    if message.fromMe {
+                        Button("Editar") { onEdit() }
                     }
+                    if !message.text.isEmpty {
+                        Button("Copiar") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(message.text, forType: .string)
+                        }
+                    }
+                }
+                Divider()
+                Button("Apagar (pra mim)") { onDeleteForMe() }
+                Button("Apagar (todos)") { onDeleteForEveryone() }
+                if message.status == "failed" {
+                    Button("Tentar novamente") { onRetry() }
+                }
+                if message.type == "sticker" {
+                    Button("Salvar nos stickers") { onSaveSticker() }
                 }
                 if shouldOfferFetchMedia {
                     Button("Carregar mídia") { onFetchMedia() }
+                }
+                Divider()
+                ForEach(quickReactions, id: \.self) { emoji in
+                    Button("Reagir \(emoji)") { onReact(emoji) }
                 }
             }
 
@@ -487,7 +803,11 @@ struct CXMessageBubbleView: View {
             if message.fromMe {
                 LinearGradient(colors: [CXColor.bubbleOutStart, CXColor.bubbleOutEnd], startPoint: .topLeading, endPoint: .bottomTrailing)
             } else {
-                CXColor.bubbleIn
+                if message.type == "note" {
+                    CXColor.note.opacity(0.2)
+                } else {
+                    CXColor.bubbleIn
+                }
             }
         }
     }
