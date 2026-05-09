@@ -29,14 +29,30 @@ struct SendMessageResponse: Decodable, Sendable {
 struct PollResponse: Decodable, Sendable {
     let ok: Bool
     let serverTS: Double?
+    let serverSeq: Int?
     let changedChats: [ChatChange]
     let inlineMessages: [Message]
+    let inlineReactions: [InlineReaction]
 
     enum CodingKeys: String, CodingKey {
         case ok
         case serverTS = "server_ts"
+        case serverSeq = "server_seq"
         case changedChats = "changed_chats"
         case inlineMessages = "inline_messages"
+        case inlineReactions = "inline_reactions"
+    }
+}
+
+struct InlineReaction: Decodable, Sendable {
+    let targetID: String
+    let emoji: String
+    let fromMe: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case targetID = "target_id"
+        case emoji
+        case fromMe = "from_me"
     }
 }
 
@@ -45,6 +61,11 @@ struct ChatChange: Decodable, Sendable {
     let connectionID: String
     let unread: Int?
     let lastMessageAt: String?
+    let lastMessage: String?
+    let lastFromMe: Bool?
+    let lastMessageType: String?
+    let sortTimestamp: Int?
+    let isLowPriority: Bool?
 
     var chatID: String {
         "\(connectionID)|\(jid)"
@@ -55,6 +76,11 @@ struct ChatChange: Decodable, Sendable {
         case connectionID = "connection_id"
         case unread
         case lastMessageAt = "last_message_at"
+        case lastMessage = "last_message"
+        case lastFromMe = "last_from_me"
+        case lastMessageType = "last_message_type"
+        case sortTimestamp = "_sort_ts"
+        case isLowPriority = "is_low_priority"
     }
 }
 
@@ -80,12 +106,31 @@ struct ChatsService {
         return response.value
     }
 
-    func fetchMessages(session: PersistedSession, chat: Chat, limit: Int = 50) async throws -> MessageListResponse {
-        let response: ConversoxHTTPResponse<MessageListResponse> = try await api.getJSON(.messages, queryItems: [
+    func fetchMessages(
+        session: PersistedSession,
+        chat: Chat,
+        limit: Int = 50,
+        beforeTS: Int? = nil,
+        afterTS: Int? = nil,
+        cacheSortTS: Int? = nil
+    ) async throws -> MessageListResponse {
+        var queryItems = [
             URLQueryItem(name: "jid", value: chat.jid),
             URLQueryItem(name: "connection_id", value: chat.connectionID),
             URLQueryItem(name: "limit", value: String(limit))
-        ], session: session, timeout: 15)
+        ]
+
+        if let beforeTS {
+            queryItems.append(URLQueryItem(name: "before_ts", value: String(beforeTS)))
+        }
+        if let afterTS {
+            queryItems.append(URLQueryItem(name: "after_ts", value: String(afterTS)))
+        }
+        if let cacheSortTS {
+            queryItems.append(URLQueryItem(name: "cache_sort_ts", value: String(cacheSortTS)))
+        }
+
+        let response: ConversoxHTTPResponse<MessageListResponse> = try await api.getJSON(.messages, queryItems: queryItems, session: session, timeout: 15)
         return MessageListResponse(
             ok: response.value.ok,
             messages: response.value.messages.map { $0.withChatID(chat.id) },
@@ -114,10 +159,22 @@ struct ChatsService {
         )
     }
 
-    func poll(session: PersistedSession, sinceTS: Double, activeChat: Chat?) async throws -> PollResponse {
+    func poll(
+        session: PersistedSession,
+        sinceTS: Double,
+        sinceSeq: Int?,
+        newestTS: Int?,
+        activeChat: Chat?
+    ) async throws -> PollResponse {
         var queryItems = [
-            URLQueryItem(name: "since_ts", value: String(sinceTS))
+            URLQueryItem(name: "since_ts", value: String(max(Int(sinceTS), 1)))
         ]
+        if let sinceSeq {
+            queryItems.append(URLQueryItem(name: "since_seq", value: String(sinceSeq)))
+        }
+        if let newestTS {
+            queryItems.append(URLQueryItem(name: "newest_ts", value: String(newestTS)))
+        }
         if let activeChat {
             queryItems.append(URLQueryItem(name: "active_jid", value: activeChat.jid))
             queryItems.append(URLQueryItem(name: "active_connection_id", value: activeChat.connectionID))

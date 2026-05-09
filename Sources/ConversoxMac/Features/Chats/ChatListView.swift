@@ -4,33 +4,6 @@ struct ChatListView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vm: ChatsViewModel
 
-    @State private var searchText = ""
-    @State private var selectedFilter: ChatFilter = .inbox
-
-    private var filteredChats: [Chat] {
-        vm.chats
-            .filter { chat in
-                switch selectedFilter {
-                case .inbox:
-                    return true
-                case .unread:
-                    return chat.unreadCount > 0
-                case .low:
-                    return false
-                case .all:
-                    return true
-                }
-            }
-            .filter { chat in
-                let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !query.isEmpty else { return true }
-                return chat.title.localizedCaseInsensitiveContains(query)
-                    || chat.jid.localizedCaseInsensitiveContains(query)
-                    || (chat.lastMessagePreview ?? "").localizedCaseInsensitiveContains(query)
-            }
-            .sorted { $0.updatedAt > $1.updatedAt }
-    }
-
     var body: some View {
         ZStack {
             CXColor.bg.ignoresSafeArea()
@@ -90,19 +63,16 @@ struct ChatListView: View {
             Divider().overlay(CXColor.border)
 
             HStack(spacing: CXSize.s2) {
-                channelPill("TD", isActive: false)
-                channelPill("WA", isActive: true, tint: CXColor.waGreen)
-                channelPill("IG", isActive: false)
-                channelPill("TG", isActive: false)
-                channelPill("EM", isActive: false)
-                channelPill("SM", isActive: false)
+                ForEach([ChatChannel.td, .wa, .ig, .tg, .em, .sm], id: \.id) { channel in
+                    channelPill(channel)
+                }
             }
             .padding(.horizontal, CXSize.s4)
             .padding(.vertical, CXSize.s3)
 
             ScrollView {
                 LazyVStack(spacing: CXSize.s1) {
-                    ForEach(filteredChats) { chat in
+                    ForEach(vm.visibleChats) { chat in
                         Button {
                             vm.selectedChatID = chat.id
                             Task { await vm.loadMessages(for: chat.id) }
@@ -110,6 +80,11 @@ struct ChatListView: View {
                             CXChatRowView(chat: chat, isActive: vm.selectedChatID == chat.id)
                         }
                         .buttonStyle(.plain)
+                        .onAppear {
+                            if chat.id == vm.visibleChats.last?.id {
+                                vm.loadMoreChats()
+                            }
+                        }
                     }
                 }
                 .padding(CXSize.s2)
@@ -135,7 +110,7 @@ struct ChatListView: View {
                     Text("Selecione uma conversa")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(CXColor.text)
-                    Text("A lista de chats aparece à esquerda.")
+                    Text("A lista de chats aparece a esquerda.")
                         .font(.system(size: 12))
                         .foregroundStyle(CXColor.textMute)
                 }
@@ -162,8 +137,14 @@ struct ChatListView: View {
 
             Spacer()
 
-            ForEach(["link", "arrowshape.turn.up.right", "tray.and.arrow.down", "sparkles", "note.text", "calendar", "checkmark"], id: \.self) { icon in
-                CXIconButton(systemName: icon) {}
+            CXIconButton(systemName: "link") {}
+            CXIconButton(systemName: "arrowshape.turn.up.right") {}
+            CXIconButton(systemName: "tray.and.arrow.down") {}
+            CXIconButton(systemName: "sparkles") {}
+            CXIconButton(systemName: "note.text") {}
+            CXIconButton(systemName: "calendar") {}
+            CXIconButton(systemName: "checkmark") {
+                Task { await vm.markSelectedChatAsRead() }
             }
         }
         .padding(.horizontal, CXSize.s4)
@@ -181,7 +162,7 @@ struct ChatListView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(CXColor.textMute)
-            TextField("Buscar", text: $searchText)
+            TextField("Buscar", text: $vm.searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(CXColor.text)
@@ -194,9 +175,9 @@ struct ChatListView: View {
     }
 
     private func filterButton(_ filter: ChatFilter) -> some View {
-        let isActive = selectedFilter == filter
+        let isActive = vm.selectedFilter == filter
         return Button {
-            selectedFilter = filter
+            vm.selectedFilter = filter
         } label: {
             HStack(spacing: 5) {
                 Text(filter.title)
@@ -216,31 +197,21 @@ struct ChatListView: View {
         .buttonStyle(.plain)
     }
 
-    private func channelPill(_ text: String, isActive: Bool, tint: Color = CXColor.accent) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .heavy))
-            .foregroundStyle(isActive ? tint : CXColor.textMute)
-            .frame(width: 38, height: 34)
-            .background(isActive ? CXColor.accentBg.opacity(0.72) : CXColor.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(isActive ? tint.opacity(0.55) : CXColor.borderLight, lineWidth: 1))
-    }
-}
+    private func channelPill(_ channel: ChatChannel) -> some View {
+        let isActive = vm.selectedChannel == channel
+        let tint = channel == .wa ? CXColor.waGreen : CXColor.accent
 
-enum ChatFilter: String, CaseIterable, Identifiable {
-    case inbox
-    case unread
-    case low
-    case all
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .inbox: return "Inbox"
-        case .unread: return "Unread"
-        case .low: return "Low"
-        case .all: return "Todos"
+        return Button {
+            vm.selectedChannel = channel
+        } label: {
+            Text(channel.rawValue)
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(isActive ? tint : CXColor.textMute)
+                .frame(width: 38, height: 34)
+                .background(isActive ? CXColor.accentBg.opacity(0.72) : CXColor.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(isActive ? tint.opacity(0.55) : CXColor.borderLight, lineWidth: 1))
         }
+        .buttonStyle(.plain)
     }
 }

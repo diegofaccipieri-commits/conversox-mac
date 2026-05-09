@@ -1,16 +1,21 @@
 import Foundation
 
 struct Chat: Codable, Identifiable, Sendable {
-    let jid: String
-    let connectionID: String
-    let instance: String?
-    let title: String
-    let unreadCount: Int
-    let lastMessagePreview: String?
-    let updatedAt: Date
-    let chatCode: String?
-    let isGroup: Bool
-    let badge: String?
+    var jid: String
+    var connectionID: String
+    var instance: String?
+    var title: String
+    var unreadCount: Int
+    var lastMessagePreview: String?
+    var updatedAt: Date
+    var chatCode: String?
+    var isGroup: Bool
+    var badge: String?
+    var nameSource: String?
+    var lastMessageType: String?
+    var lastMessageFileName: String?
+    var lastFromMe: Bool
+    var isLowPriority: Bool
 
     var id: String {
         "\(connectionID)|\(jid)"
@@ -33,6 +38,11 @@ struct Chat: Codable, Identifiable, Sendable {
         case chatCode = "chat_code"
         case isGroup = "is_group"
         case badge
+        case nameSource = "name_source"
+        case lastMessageType = "last_message_type"
+        case lastMessageFileName = "last_message_file_name"
+        case lastFromMe = "last_from_me"
+        case isLowPriority = "is_low_priority"
     }
 
     init(
@@ -45,7 +55,12 @@ struct Chat: Codable, Identifiable, Sendable {
         updatedAt: Date,
         chatCode: String?,
         isGroup: Bool,
-        badge: String?
+        badge: String?,
+        nameSource: String?,
+        lastMessageType: String?,
+        lastMessageFileName: String?,
+        lastFromMe: Bool,
+        isLowPriority: Bool
     ) {
         self.jid = jid
         self.connectionID = connectionID
@@ -57,6 +72,11 @@ struct Chat: Codable, Identifiable, Sendable {
         self.chatCode = chatCode
         self.isGroup = isGroup
         self.badge = badge
+        self.nameSource = nameSource
+        self.lastMessageType = lastMessageType
+        self.lastMessageFileName = lastMessageFileName
+        self.lastFromMe = lastFromMe
+        self.isLowPriority = isLowPriority
     }
 
     init(from decoder: Decoder) throws {
@@ -76,6 +96,11 @@ struct Chat: Codable, Identifiable, Sendable {
         chatCode = try container.decodeIfPresent(String.self, forKey: .chatCode)
         isGroup = try container.decodeIfPresent(Bool.self, forKey: .isGroup) ?? jid.contains("@g.us")
         badge = try container.decodeIfPresent(String.self, forKey: .badge)
+        nameSource = try container.decodeIfPresent(String.self, forKey: .nameSource)
+        lastMessageType = try container.decodeIfPresent(String.self, forKey: .lastMessageType)
+        lastMessageFileName = try container.decodeIfPresent(String.self, forKey: .lastMessageFileName)
+        lastFromMe = try container.decodeIfPresent(Bool.self, forKey: .lastFromMe) ?? false
+        isLowPriority = try container.decodeIfPresent(Bool.self, forKey: .isLowPriority) ?? false
 
         if let isoDate = try container.decodeIfPresent(String.self, forKey: .lastMessageAt)
             ?? container.decodeIfPresent(String.self, forKey: .updatedAt),
@@ -100,6 +125,11 @@ struct Chat: Codable, Identifiable, Sendable {
         try container.encodeIfPresent(chatCode, forKey: .chatCode)
         try container.encode(isGroup, forKey: .isGroup)
         try container.encodeIfPresent(badge, forKey: .badge)
+        try container.encodeIfPresent(nameSource, forKey: .nameSource)
+        try container.encodeIfPresent(lastMessageType, forKey: .lastMessageType)
+        try container.encodeIfPresent(lastMessageFileName, forKey: .lastMessageFileName)
+        try container.encode(lastFromMe, forKey: .lastFromMe)
+        try container.encode(isLowPriority, forKey: .isLowPriority)
     }
 }
 

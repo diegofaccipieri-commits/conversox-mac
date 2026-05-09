@@ -65,4 +65,89 @@ struct ConversoxMacTests {
         #expect(error.backendError == "forbidden_not_assigned")
         #expect(error.userMessage.contains("nao atribuida"))
     }
+
+    @MainActor
+    @Test func chatStoreShouldFilterLowPriorityAndChannel() {
+        let store = ChatStore()
+        store.replaceAll([
+            Chat(
+                jid: "5511@s.whatsapp.net",
+                connectionID: "evolution:main",
+                instance: "main",
+                title: "Cliente WA",
+                unreadCount: 1,
+                lastMessagePreview: "Oi",
+                updatedAt: Date(),
+                chatCode: nil,
+                isGroup: false,
+                badge: nil,
+                nameSource: nil,
+                lastMessageType: "text",
+                lastMessageFileName: nil,
+                lastFromMe: false,
+                isLowPriority: false
+            ),
+            Chat(
+                jid: "5512@s.whatsapp.net",
+                connectionID: "email:inbox",
+                instance: nil,
+                title: "Cliente Email",
+                unreadCount: 0,
+                lastMessagePreview: "Doc",
+                updatedAt: Date(),
+                chatCode: nil,
+                isGroup: false,
+                badge: nil,
+                nameSource: nil,
+                lastMessageType: "document",
+                lastMessageFileName: "arquivo.pdf",
+                lastFromMe: true,
+                isLowPriority: true
+            )
+        ])
+
+        let inboxWA = store.filteredChats(searchText: "", filter: .inbox, channel: .wa)
+        #expect(inboxWA.count == 1)
+        #expect(inboxWA.first?.title == "Cliente WA")
+
+        let lowAll = store.filteredChats(searchText: "", filter: .low, channel: .all)
+        #expect(lowAll.count == 1)
+        #expect(lowAll.first?.title == "Cliente Email")
+    }
+
+    @MainActor
+    @Test func messageStoreShouldDeduplicateInlineMessagesByKeyID() {
+        let store = MessageStore()
+        let now = Date()
+        let incoming = [
+            Message(
+                id: "msg-1",
+                keyID: "msg-key-1",
+                chatID: "",
+                connectionID: "evolution:main",
+                senderName: "Cliente",
+                text: "Oi",
+                sentAt: now,
+                fromMe: false,
+                type: "text",
+                status: "delivered"
+            ),
+            Message(
+                id: "msg-1-duplicate",
+                keyID: "msg-key-1",
+                chatID: "",
+                connectionID: "evolution:main",
+                senderName: "Cliente",
+                text: "Oi duplicada",
+                sentAt: now.addingTimeInterval(1),
+                fromMe: false,
+                type: "text",
+                status: "delivered"
+            )
+        ]
+
+        let merged = store.appendInline(incoming, to: "evolution:main|5511@s.whatsapp.net")
+        #expect(merged.count == 1)
+        #expect(merged.first?.text == "Oi")
+    }
 }
