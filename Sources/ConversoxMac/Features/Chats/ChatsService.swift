@@ -144,23 +144,60 @@ struct MarkReadRequest: Encodable, Sendable {
     }
 }
 
-struct GenericActionRequest: Encodable, Sendable {
+struct DynamicActionRequest: Encodable, Sendable {
     let action: String
     let jid: String
     let connectionID: String
-    let payload: [String: String]
+    let dynamic: [String: String]
 
     enum CodingKeys: String, CodingKey {
         case action
         case jid
         case connectionID = "connection_id"
-        case payload
+    }
+
+    struct DynamicCodingKey: CodingKey {
+        let stringValue: String
+        let intValue: Int? = nil
+
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+        }
+
+        init?(intValue: Int) {
+            return nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var fixed = encoder.container(keyedBy: CodingKeys.self)
+        try fixed.encode(action, forKey: .action)
+        try fixed.encode(jid, forKey: .jid)
+        try fixed.encode(connectionID, forKey: .connectionID)
+
+        var extra = encoder.container(keyedBy: DynamicCodingKey.self)
+        for (key, value) in dynamic {
+            guard let codingKey = DynamicCodingKey(stringValue: key) else { continue }
+            try extra.encode(value, forKey: codingKey)
+        }
     }
 }
 
 struct GenericActionResponse: Decodable, Sendable {
     let ok: Bool
     let error: String?
+}
+
+struct FetchGroupInviteResponse: Decodable, Sendable {
+    let ok: Bool
+    let inviteURL: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case inviteURL = "invite_url"
+        case error
+    }
 }
 
 struct FetchMediaRequest: Encodable, Sendable {
@@ -195,6 +232,43 @@ struct FetchMediaResponse: Decodable, Sendable {
     }
 }
 
+private struct ContactsDirectoryResponse: Decodable, Sendable {
+    let ok: Bool?
+    let contacts: [ContactsDirectoryItem]
+}
+
+private struct ContactsDirectoryItem: Decodable, Sendable {
+    let jid: String
+    let connectionID: String?
+    let name: String?
+    let isGroup: Bool?
+    let lastMessageAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case jid
+        case connectionID = "connection_id"
+        case name
+        case isGroup = "is_group"
+        case lastMessageAt = "last_message_at"
+    }
+}
+
+private struct QuickRepliesResponse: Decodable, Sendable {
+    let ok: Bool?
+    let quickReplies: [QuickReplyItem]
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case quickReplies = "quick_replies"
+    }
+}
+
+private struct QuickReplyItem: Decodable, Sendable {
+    let body: String?
+    let title: String?
+    let shortcut: String?
+}
+
 struct ChatsService {
     private let api = ConversoxAPI()
 
@@ -203,6 +277,70 @@ struct ChatsService {
             URLQueryItem(name: "_t", value: String(Int(Date().timeIntervalSince1970)))
         ], session: session, timeout: 8)
         return response.value
+    }
+
+    func fetchContactsDirectory(session: PersistedSession, search: String) async throws -> [ContactDirectoryEntry] {
+        let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: [URLQueryItem] = [
+            URLQueryItem(name: "q", value: trimmed.isEmpty ? nil : trimmed),
+            URLQueryItem(name: "limit", value: "200")
+        ]
+
+        var response = try await getContactsDirectory(
+            session: session,
+            route: .customPrefixed("/contacts_directory.php"),
+            query: query
+        )
+        if response == nil {
+            response = try await getContactsDirectory(
+                session: session,
+                route: .absolutePath("/api/conversox3/contacts_directory.php"),
+                query: query
+            )
+        }
+
+        guard let response else { return [] }
+
+        return response.contacts.map { item in
+            let connectionID = item.connectionID ?? "evolution:main"
+            let title = item.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedName = (title?.isEmpty == false) ? title! : item.jid
+            let date = item.lastMessageAt.flatMap(DateParser.parse) ?? .distantPast
+
+            return ContactDirectoryEntry(
+                id: "\(connectionID)|\(item.jid)",
+                title: resolvedName,
+                jid: item.jid,
+                connectionID: connectionID,
+                isGroup: item.isGroup ?? item.jid.contains("@g.us"),
+                updatedAt: date
+            )
+        }
+    }
+
+    func fetchQuickReplies(session: PersistedSession) async throws -> [String] {
+        var response = try await getQuickReplies(
+            session: session,
+            route: .customPrefixed("/quick_replies.php")
+        )
+        if response == nil {
+            response = try await getQuickReplies(
+                session: session,
+                route: .absolutePath("/api/conversox3/quick_replies.php")
+            )
+        }
+
+        guard let response else { return [] }
+
+        let values = response.quickReplies.compactMap { item -> String? in
+            let body = item.body?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let body, !body.isEmpty { return body }
+            let title = item.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let title, !title.isEmpty { return title }
+            return item.shortcut
+        }
+
+        return Array(Set(values)).sorted()
     }
 
     func fetchMessages(
@@ -318,7 +456,7 @@ struct ChatsService {
             session: session,
             chat: chat,
             action: "set_low_priority",
-            payload: ["is_low_priority": isLowPriority ? "1" : "0"]
+            payload: ["set": isLowPriority ? "1" : "0"]
         )
     }
 
@@ -326,18 +464,34 @@ struct ChatsService {
         try await performAction(
             session: session,
             chat: chat,
-            action: "transfer_chat",
-            payload: ["target": target]
+            action: "transfer_conversation",
+            payload: [
+                "target_user_id": target,
+                "target_email": target
+            ]
         )
     }
 
-    func groupInvite(session: PersistedSession, chat: Chat, members: String) async throws {
-        try await performAction(
-            session: session,
-            chat: chat,
-            action: "group_invite",
-            payload: ["members": members]
+    func fetchGroupInvite(session: PersistedSession, chat: Chat) async throws -> String? {
+        let req = DynamicActionRequest(
+            action: "fetch_group_invite",
+            jid: chat.jid,
+            connectionID: chat.connectionID,
+            dynamic: ["group_jid": chat.jid]
         )
+
+        let response: ConversoxHTTPResponse<FetchGroupInviteResponse> = try await api.postJSON(
+            .actions,
+            body: req,
+            session: session,
+            timeout: 20
+        )
+
+        guard response.value.ok else {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "group_invite_fetch_failed", rawBody: nil)
+        }
+
+        return response.value.inviteURL
     }
 
     private func performAction(
@@ -346,11 +500,11 @@ struct ChatsService {
         action: String,
         payload: [String: String] = [:]
     ) async throws {
-        let req = GenericActionRequest(
+        let req = DynamicActionRequest(
             action: action,
             jid: chat.jid,
             connectionID: chat.connectionID,
-            payload: payload
+            dynamic: payload
         )
         let response: ConversoxHTTPResponse<GenericActionResponse> = try await api.postJSON(
             .actions,
@@ -419,5 +573,27 @@ struct ChatsService {
             timeout: 60
         )
         return response.value
+    }
+
+    private func getContactsDirectory(
+        session: PersistedSession,
+        route: ConversoxAPI.Route,
+        query: [URLQueryItem]
+    ) async throws -> ContactsDirectoryResponse? {
+        do {
+            let response: ConversoxHTTPResponse<ContactsDirectoryResponse> = try await api.getJSON(route, queryItems: query, session: session, timeout: 20)
+            return response.value
+        } catch let error as ConversoxError where error.httpStatus == 404 {
+            return nil
+        }
+    }
+
+    private func getQuickReplies(session: PersistedSession, route: ConversoxAPI.Route) async throws -> QuickRepliesResponse? {
+        do {
+            let response: ConversoxHTTPResponse<QuickRepliesResponse> = try await api.getJSON(route, session: session, timeout: 20)
+            return response.value
+        } catch let error as ConversoxError where error.httpStatus == 404 {
+            return nil
+        }
     }
 }

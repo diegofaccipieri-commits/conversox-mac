@@ -4,11 +4,8 @@ struct ChatListView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vm: ChatsViewModel
     @State private var showTransferPrompt = false
-    @State private var showGroupInvitePrompt = false
     @State private var showQuickReplies = false
     @State private var transferTarget = ""
-    @State private var groupMembers = ""
-    @State private var notesVisible = false
 
     var body: some View {
         ZStack {
@@ -157,8 +154,12 @@ struct ChatListView: View {
             CXIconButton(systemName: "arrowshape.turn.up.right") { showTransferPrompt = true }
             CXIconButton(systemName: "tray.and.arrow.down") {}
             CXIconButton(systemName: "sparkles") { showQuickReplies = true }
-            CXIconButton(systemName: notesVisible ? "note.text" : "note.text.badge.plus") { notesVisible.toggle() }
-            CXIconButton(systemName: "calendar.badge.plus") { showGroupInvitePrompt = true }
+            CXIconButton(systemName: vm.isInternalNotesMode ? "note.text" : "note.text.badge.plus") {
+                vm.toggleInternalNotesMode()
+            }
+            CXIconButton(systemName: "person.3.sequence.fill") {
+                Task { await vm.fetchSelectedGroupInvite() }
+            }
             CXIconButton(systemName: "eye.slash") {
                 Task { await vm.markSelectedChatAsUnread() }
             }
@@ -187,16 +188,6 @@ struct ChatListView: View {
         } message: {
             Text("Informe o destino da transferência.")
         }
-        .alert("Convidar para grupo", isPresented: $showGroupInvitePrompt) {
-            TextField("Membros (jid ou ids, separados por vírgula)", text: $groupMembers)
-            Button("Cancelar", role: .cancel) {}
-            Button("Convidar") {
-                Task { await vm.inviteSelectedChatToGroup(members: groupMembers) }
-                groupMembers = ""
-            }
-        } message: {
-            Text("Adicionar membros no grupo/conversa.")
-        }
         .popover(isPresented: $showQuickReplies, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: CXSize.s2) {
                 Text("Quick Replies")
@@ -224,7 +215,7 @@ struct ChatListView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(CXColor.textMute)
-            TextField("Buscar", text: $vm.searchText)
+            TextField("Buscar", text: vm.selectedSidebarTab == .contacts ? $vm.contactSearchText : $vm.searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(CXColor.text)

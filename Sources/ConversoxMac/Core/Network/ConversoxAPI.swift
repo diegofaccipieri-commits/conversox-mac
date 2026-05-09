@@ -127,6 +127,7 @@ actor ConversoxAPI {
         case actions
         case poll
         case customPrefixed(String)
+        case absolutePath(String)
     }
 
     private struct APIErrorEnvelope: Decodable {
@@ -345,6 +346,8 @@ actor ConversoxAPI {
         case .customPrefixed(let relative):
             let clean = relative.hasPrefix("/") ? relative : "/\(relative)"
             return "\(prefix)\(clean)"
+        case .absolutePath(let path):
+            return path.hasPrefix("/") ? path : "/\(path)"
         }
     }
 

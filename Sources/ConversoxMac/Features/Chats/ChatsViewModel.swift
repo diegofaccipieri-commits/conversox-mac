@@ -38,9 +38,20 @@ final class ChatsViewModel: ObservableObject {
         didSet { resetChatPagination() }
     }
 
-    @Published var selectedSidebarTab: SidebarTab = .chats
+    @Published var selectedSidebarTab: SidebarTab = .chats {
+        didSet {
+            if selectedSidebarTab == .contacts {
+                Task { await refreshContactsDirectory() }
+            }
+        }
+    }
     @Published var contactSearchText = "" {
-        didSet { syncChatSnapshots() }
+        didSet {
+            syncChatSnapshots()
+            if selectedSidebarTab == .contacts {
+                Task { await refreshContactsDirectory() }
+            }
+        }
     }
     @Published private(set) var contactsDirectory: [ContactDirectoryEntry] = []
     @Published private(set) var quickReplies: [String] = [
@@ -59,6 +70,7 @@ final class ChatsViewModel: ObservableObject {
     private var pollIntervalSeconds: UInt64 = 3
     private var chatsLoaded = false
     private var visibleLimit = 150
+    private var didLoadQuickReplies = false
 
     private let backoffSchedule: [UInt64] = [3, 15, 30, 60, 120]
     private var backoffIndex = 0
@@ -88,6 +100,7 @@ final class ChatsViewModel: ObservableObject {
             if selectedChatID == nil {
                 selectedChatID = chats.first?.id
             }
+            await loadQuickRepliesIfNeeded()
             updateBadge()
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
@@ -155,6 +168,33 @@ final class ChatsViewModel: ObservableObject {
 
     func toggleInternalNotesMode() {
         isInternalNotesMode.toggle()
+    }
+
+    func loadQuickRepliesIfNeeded() async {
+        guard !didLoadQuickReplies, let session = currentSession else { return }
+        didLoadQuickReplies = true
+        do {
+            let values = try await chatsService.fetchQuickReplies(session: session)
+            if !values.isEmpty {
+                quickReplies = values
+            }
+        } catch {
+            // Keep local defaults if backend endpoint is unavailable.
+        }
+    }
+
+    func refreshContactsDirectory() async {
+        guard let session = currentSession else { return }
+        do {
+            let contacts = try await chatsService.fetchContactsDirectory(session: session, search: contactSearchText)
+            if !contacts.isEmpty {
+                contactsDirectory = contacts
+            } else {
+                contactsDirectory = chatStore.contactsDirectory(searchText: contactSearchText, channel: selectedChannel)
+            }
+        } catch {
+            contactsDirectory = chatStore.contactsDirectory(searchText: contactSearchText, channel: selectedChannel)
+        }
     }
 
     func attachFile(url: URL) {
@@ -334,18 +374,19 @@ final class ChatsViewModel: ObservableObject {
         }
     }
 
-    func inviteSelectedChatToGroup(members: String) async {
+    func fetchSelectedGroupInvite() async {
         guard let session = currentSession,
               let chat = selectedChat else { return }
-        let clean = members.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
         do {
-            try await chatsService.groupInvite(session: session, chat: chat, members: clean)
-            await reloadChats()
+            let inviteURL = try await chatsService.fetchGroupInvite(session: session, chat: chat)
+            if let inviteURL, !inviteURL.isEmpty {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(inviteURL, forType: .string)
+            }
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
         } catch {
-            errorMessage = "Falha ao convidar para grupo."
+            errorMessage = "Falha ao obter link de convite do grupo."
         }
     }
 
@@ -388,6 +429,7 @@ final class ChatsViewModel: ObservableObject {
         composerAttachments = []
         isSendingMessage = false
         isInternalNotesMode = false
+        didLoadQuickReplies = false
 
         pollCursor = 1
         pollSeq = nil
