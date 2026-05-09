@@ -26,6 +26,21 @@ struct ChatListView: View {
             .padding(CXSize.s3)
         }
         .preferredColorScheme(.dark)
+        .overlay(alignment: .top) {
+            if let toast = vm.toast {
+                HStack(spacing: 8) {
+                    Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    Text(toast.message)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(toast.isError ? CXColor.danger.opacity(0.95) : CXColor.success.opacity(0.95))
+                .clipShape(Capsule())
+                .padding(.top, 16)
+            }
+        }
         .task {
             await vm.loadInitialChatsIfNeeded()
             await vm.startRealtime()
@@ -80,28 +95,39 @@ struct ChatListView: View {
             .padding(.vertical, CXSize.s3)
 
             if vm.selectedSidebarTab == .chats {
-                ScrollView {
-                    LazyVStack(spacing: CXSize.s1) {
-                        ForEach(vm.visibleChats) { chat in
-                            Button {
-                                vm.selectedChatID = chat.id
-                                Task { await vm.loadMessages(for: chat.id) }
-                            } label: {
-                                CXChatRowView(chat: chat, isActive: vm.selectedChatID == chat.id)
-                            }
-                            .buttonStyle(.plain)
-                            .onAppear {
-                                if chat.id == vm.visibleChats.last?.id {
-                                    vm.loadMoreChats()
+                if vm.isBootstrapping && vm.visibleChats.isEmpty {
+                    VStack(spacing: 10) {
+                        ForEach(0..<8, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(CXColor.surface3)
+                                .frame(height: 58)
+                        }
+                    }
+                    .padding(CXSize.s3)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: CXSize.s1) {
+                            ForEach(vm.visibleChats) { chat in
+                                Button {
+                                    vm.selectedChatID = chat.id
+                                    Task { await vm.loadMessages(for: chat.id) }
+                                } label: {
+                                    CXChatRowView(chat: chat, isActive: vm.selectedChatID == chat.id)
+                                }
+                                .buttonStyle(.plain)
+                                .onAppear {
+                                    if chat.id == vm.visibleChats.last?.id {
+                                        vm.loadMoreChats()
+                                    }
                                 }
                             }
                         }
+                        .padding(CXSize.s2)
                     }
-                    .padding(CXSize.s2)
+                    .background(
+                        LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+                    )
                 }
-                .background(
-                    LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-                )
             } else {
                 contactsPanel
             }
@@ -193,14 +219,31 @@ struct ChatListView: View {
                 Text("Quick Replies")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(CXColor.text)
-                ForEach(vm.quickReplies, id: \.self) { reply in
-                    Button(reply) {
-                        showQuickReplies = false
-                        Task { await vm.sendQuickReply(reply) }
+                HStack(spacing: 8) {
+                    TextField("Nova quick reply ou /shortcut", text: $vm.quickReplyDraft)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Adicionar") {
+                        vm.addQuickReply()
                     }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(CXColor.textSoft)
+                }
+                ForEach(vm.quickReplies, id: \.self) { reply in
+                    HStack(spacing: 8) {
+                        Button(reply) {
+                            showQuickReplies = false
+                            Task { await vm.sendQuickReply(reply) }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(CXColor.textSoft)
+                        Spacer()
+                        Button(role: .destructive) {
+                            vm.removeQuickReply(reply)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                    }
                     .padding(.vertical, 4)
                 }
             }
