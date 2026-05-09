@@ -130,7 +130,15 @@ struct ConversoxMacTests {
                 sentAt: now,
                 fromMe: false,
                 type: "text",
-                status: "delivered"
+                status: "delivered",
+                mediaURL: nil,
+                mimeType: nil,
+                fileName: nil,
+                duration: nil,
+                quotedMessageID: nil,
+                quotedText: nil,
+                isDeleted: false,
+                isForwarded: false
             ),
             Message(
                 id: "msg-1-duplicate",
@@ -142,7 +150,15 @@ struct ConversoxMacTests {
                 sentAt: now.addingTimeInterval(1),
                 fromMe: false,
                 type: "text",
-                status: "delivered"
+                status: "delivered",
+                mediaURL: nil,
+                mimeType: nil,
+                fileName: nil,
+                duration: nil,
+                quotedMessageID: nil,
+                quotedText: nil,
+                isDeleted: false,
+                isForwarded: false
             )
         ]
 

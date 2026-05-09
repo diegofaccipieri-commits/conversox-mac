@@ -11,6 +11,14 @@ struct Message: Codable, Identifiable, Sendable {
     let fromMe: Bool
     let type: String
     let status: String?
+    let mediaURL: String?
+    let mimeType: String?
+    let fileName: String?
+    let duration: Int?
+    let quotedMessageID: String?
+    let quotedText: String?
+    let isDeleted: Bool
+    let isForwarded: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -25,6 +33,24 @@ struct Message: Codable, Identifiable, Sendable {
         case fromMe = "from_me"
         case type
         case status
+        case mediaURL = "media_url"
+        case mediaURLFallback = "file_url"
+        case mimeType = "mime_type"
+        case fileName = "file_name"
+        case duration
+        case quotedMessageID = "quoted_msg_id"
+        case quotedText = "quoted_text"
+        case quoted
+        case isDeleted = "is_deleted"
+        case deletedAt = "deleted_at"
+        case isForwarded = "forwarded"
+    }
+
+    enum QuotedCodingKeys: String, CodingKey {
+        case id
+        case keyID = "key_id"
+        case text
+        case body
     }
 
     init(
@@ -37,7 +63,15 @@ struct Message: Codable, Identifiable, Sendable {
         sentAt: Date,
         fromMe: Bool,
         type: String,
-        status: String?
+        status: String?,
+        mediaURL: String?,
+        mimeType: String?,
+        fileName: String?,
+        duration: Int?,
+        quotedMessageID: String?,
+        quotedText: String?,
+        isDeleted: Bool,
+        isForwarded: Bool
     ) {
         self.id = id
         self.keyID = keyID
@@ -49,6 +83,14 @@ struct Message: Codable, Identifiable, Sendable {
         self.fromMe = fromMe
         self.type = type
         self.status = status
+        self.mediaURL = mediaURL
+        self.mimeType = mimeType
+        self.fileName = fileName
+        self.duration = duration
+        self.quotedMessageID = quotedMessageID
+        self.quotedText = quotedText
+        self.isDeleted = isDeleted
+        self.isForwarded = isForwarded
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +109,26 @@ struct Message: Codable, Identifiable, Sendable {
             ?? ""
         type = try container.decodeIfPresent(String.self, forKey: .type) ?? "text"
         status = try container.decodeIfPresent(String.self, forKey: .status)
+        mediaURL = try container.decodeIfPresent(String.self, forKey: .mediaURL)
+            ?? container.decodeIfPresent(String.self, forKey: .mediaURLFallback)
+        mimeType = try container.decodeIfPresent(String.self, forKey: .mimeType)
+        fileName = try container.decodeIfPresent(String.self, forKey: .fileName)
+        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
+        isForwarded = try container.decodeIfPresent(Bool.self, forKey: .isForwarded) ?? false
+
+        let directQuotedID = try container.decodeIfPresent(String.self, forKey: .quotedMessageID)
+        let directQuotedText = try container.decodeIfPresent(String.self, forKey: .quotedText)
+        if let quotedContainer = try? container.nestedContainer(keyedBy: QuotedCodingKeys.self, forKey: .quoted) {
+            let nestedID = try quotedContainer.decodeIfPresent(String.self, forKey: .id)
+            let nestedKeyID = try quotedContainer.decodeIfPresent(String.self, forKey: .keyID)
+            let nestedBody = try quotedContainer.decodeIfPresent(String.self, forKey: .body)
+            let nestedText = try quotedContainer.decodeIfPresent(String.self, forKey: .text)
+            quotedMessageID = directQuotedID ?? nestedID ?? nestedKeyID
+            quotedText = directQuotedText ?? nestedBody ?? nestedText
+        } else {
+            quotedMessageID = directQuotedID
+            quotedText = directQuotedText
+        }
 
         if let timestamp = try container.decodeIfPresent(Double.self, forKey: .timestamp) {
             sentAt = Date(timeIntervalSince1970: timestamp)
@@ -78,6 +140,10 @@ struct Message: Codable, Identifiable, Sendable {
         } else {
             sentAt = .distantPast
         }
+
+        let explicitDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+        let deletedAt = try container.decodeIfPresent(String.self, forKey: .deletedAt)
+        isDeleted = explicitDeleted || deletedAt != nil
     }
 
     func withChatID(_ chatID: String) -> Message {
@@ -91,7 +157,38 @@ struct Message: Codable, Identifiable, Sendable {
             sentAt: sentAt,
             fromMe: fromMe,
             type: type,
-            status: status
+            status: status,
+            mediaURL: mediaURL,
+            mimeType: mimeType,
+            fileName: fileName,
+            duration: duration,
+            quotedMessageID: quotedMessageID,
+            quotedText: quotedText,
+            isDeleted: isDeleted,
+            isForwarded: isForwarded
+        )
+    }
+
+    func withMediaURL(_ mediaURL: String) -> Message {
+        Message(
+            id: id,
+            keyID: keyID,
+            chatID: chatID,
+            connectionID: connectionID,
+            senderName: senderName,
+            text: text,
+            sentAt: sentAt,
+            fromMe: fromMe,
+            type: type,
+            status: status,
+            mediaURL: mediaURL,
+            mimeType: mimeType,
+            fileName: fileName,
+            duration: duration,
+            quotedMessageID: quotedMessageID,
+            quotedText: quotedText,
+            isDeleted: isDeleted,
+            isForwarded: isForwarded
         )
     }
 
@@ -107,6 +204,14 @@ struct Message: Codable, Identifiable, Sendable {
         try container.encode(fromMe, forKey: .fromMe)
         try container.encode(type, forKey: .type)
         try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(mediaURL, forKey: .mediaURL)
+        try container.encodeIfPresent(mimeType, forKey: .mimeType)
+        try container.encodeIfPresent(fileName, forKey: .fileName)
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(quotedMessageID, forKey: .quotedMessageID)
+        try container.encodeIfPresent(quotedText, forKey: .quotedText)
+        try container.encode(isDeleted, forKey: .isDeleted)
+        try container.encode(isForwarded, forKey: .isForwarded)
     }
 }
 
@@ -114,10 +219,14 @@ struct MessageListResponse: Codable, Sendable {
     let ok: Bool?
     let messages: [Message]
     let nextCursor: String?
+    let hasOlder: Bool?
+    let oldestTS: Int?
 
     enum CodingKeys: String, CodingKey {
         case ok
         case messages
         case nextCursor = "next_cursor"
+        case hasOlder = "has_older"
+        case oldestTS = "oldest_ts"
     }
 }

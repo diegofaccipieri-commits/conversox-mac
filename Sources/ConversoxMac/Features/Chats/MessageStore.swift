@@ -29,6 +29,31 @@ final class MessageStore {
     }
 
     @discardableResult
+    func prependOlder(_ messages: [Message], to chatID: String) -> [Message] {
+        guard !messages.isEmpty else {
+            touch(chatID)
+            return entries[chatID]?.messages ?? []
+        }
+
+        var entry = entries[chatID] ?? Entry(messages: [], knownIDs: [], lastAccess: Date())
+        var prepended: [Message] = []
+        for message in messages {
+            let normalized = message.withChatID(chatID)
+            let id = dedupID(for: normalized)
+            guard !entry.knownIDs.contains(id) else { continue }
+            entry.knownIDs.insert(id)
+            prepended.append(normalized)
+        }
+
+        entry.messages = prepended + entry.messages
+        entry.messages.sort { $0.sentAt < $1.sentAt }
+        entry.lastAccess = Date()
+        entries[chatID] = entry
+        pruneIfNeeded()
+        return entry.messages
+    }
+
+    @discardableResult
     func appendInline(_ messages: [Message], to chatID: String) -> [Message] {
         guard !messages.isEmpty else {
             touch(chatID)
@@ -54,6 +79,17 @@ final class MessageStore {
     func newestTimestamp(for chatID: String) -> Int {
         let ts = entries[chatID]?.messages.last?.sentAt.timeIntervalSince1970 ?? 0
         return max(Int(ts), 0)
+    }
+
+    @discardableResult
+    func updateMediaURL(chatID: String, messageID: String, mediaURL: String) -> [Message] {
+        guard var entry = entries[chatID] else { return [] }
+        if let index = entry.messages.firstIndex(where: { $0.id == messageID || $0.keyID == messageID }) {
+            entry.messages[index] = entry.messages[index].withMediaURL(mediaURL)
+            entry.lastAccess = Date()
+            entries[chatID] = entry
+        }
+        return entry.messages
     }
 
     private func normalize(messages: [Message], chatID: String) -> (messages: [Message], knownIDs: Set<String>) {

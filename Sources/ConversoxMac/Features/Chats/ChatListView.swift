@@ -3,6 +3,12 @@ import SwiftUI
 struct ChatListView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vm: ChatsViewModel
+    @State private var showTransferPrompt = false
+    @State private var showGroupInvitePrompt = false
+    @State private var showQuickReplies = false
+    @State private var transferTarget = ""
+    @State private var groupMembers = ""
+    @State private var notesVisible = false
 
     var body: some View {
         ZStack {
@@ -50,6 +56,12 @@ struct ChatListView: View {
                 }
 
                 HStack(spacing: CXSize.s2) {
+                    ForEach(SidebarTab.allCases) { tab in
+                        sidebarTabButton(tab)
+                    }
+                }
+
+                HStack(spacing: CXSize.s2) {
                     ForEach(ChatFilter.allCases) { filter in
                         filterButton(filter)
                     }
@@ -70,28 +82,32 @@ struct ChatListView: View {
             .padding(.horizontal, CXSize.s4)
             .padding(.vertical, CXSize.s3)
 
-            ScrollView {
-                LazyVStack(spacing: CXSize.s1) {
-                    ForEach(vm.visibleChats) { chat in
-                        Button {
-                            vm.selectedChatID = chat.id
-                            Task { await vm.loadMessages(for: chat.id) }
-                        } label: {
-                            CXChatRowView(chat: chat, isActive: vm.selectedChatID == chat.id)
-                        }
-                        .buttonStyle(.plain)
-                        .onAppear {
-                            if chat.id == vm.visibleChats.last?.id {
-                                vm.loadMoreChats()
+            if vm.selectedSidebarTab == .chats {
+                ScrollView {
+                    LazyVStack(spacing: CXSize.s1) {
+                        ForEach(vm.visibleChats) { chat in
+                            Button {
+                                vm.selectedChatID = chat.id
+                                Task { await vm.loadMessages(for: chat.id) }
+                            } label: {
+                                CXChatRowView(chat: chat, isActive: vm.selectedChatID == chat.id)
+                            }
+                            .buttonStyle(.plain)
+                            .onAppear {
+                                if chat.id == vm.visibleChats.last?.id {
+                                    vm.loadMoreChats()
+                                }
                             }
                         }
                     }
+                    .padding(CXSize.s2)
                 }
-                .padding(CXSize.s2)
+                .background(
+                    LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+                )
+            } else {
+                contactsPanel
             }
-            .background(
-                LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-            )
         }
     }
 
@@ -138,11 +154,17 @@ struct ChatListView: View {
             Spacer()
 
             CXIconButton(systemName: "link") {}
-            CXIconButton(systemName: "arrowshape.turn.up.right") {}
+            CXIconButton(systemName: "arrowshape.turn.up.right") { showTransferPrompt = true }
             CXIconButton(systemName: "tray.and.arrow.down") {}
-            CXIconButton(systemName: "sparkles") {}
-            CXIconButton(systemName: "note.text") {}
-            CXIconButton(systemName: "calendar") {}
+            CXIconButton(systemName: "sparkles") { showQuickReplies = true }
+            CXIconButton(systemName: notesVisible ? "note.text" : "note.text.badge.plus") { notesVisible.toggle() }
+            CXIconButton(systemName: "calendar.badge.plus") { showGroupInvitePrompt = true }
+            CXIconButton(systemName: "eye.slash") {
+                Task { await vm.markSelectedChatAsUnread() }
+            }
+            CXIconButton(systemName: "arrow.down.circle") {
+                Task { await vm.toggleSelectedChatLowPriority() }
+            }
             CXIconButton(systemName: "checkmark") {
                 Task { await vm.markSelectedChatAsRead() }
             }
@@ -154,6 +176,46 @@ struct ChatListView: View {
         )
         .overlay(alignment: .bottom) {
             Rectangle().fill(CXColor.border).frame(height: 1)
+        }
+        .alert("Transferir conversa", isPresented: $showTransferPrompt) {
+            TextField("Destino (agente/fila)", text: $transferTarget)
+            Button("Cancelar", role: .cancel) {}
+            Button("Transferir") {
+                Task { await vm.transferSelectedChat(target: transferTarget) }
+                transferTarget = ""
+            }
+        } message: {
+            Text("Informe o destino da transferência.")
+        }
+        .alert("Convidar para grupo", isPresented: $showGroupInvitePrompt) {
+            TextField("Membros (jid ou ids, separados por vírgula)", text: $groupMembers)
+            Button("Cancelar", role: .cancel) {}
+            Button("Convidar") {
+                Task { await vm.inviteSelectedChatToGroup(members: groupMembers) }
+                groupMembers = ""
+            }
+        } message: {
+            Text("Adicionar membros no grupo/conversa.")
+        }
+        .popover(isPresented: $showQuickReplies, arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: CXSize.s2) {
+                Text("Quick Replies")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(CXColor.text)
+                ForEach(vm.quickReplies, id: \.self) { reply in
+                    Button(reply) {
+                        showQuickReplies = false
+                        Task { await vm.sendQuickReply(reply) }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(CXColor.textSoft)
+                    .padding(.vertical, 4)
+                }
+            }
+            .padding(CXSize.s4)
+            .frame(width: 300)
+            .background(CXColor.surface2)
         }
     }
 
@@ -197,6 +259,22 @@ struct ChatListView: View {
         .buttonStyle(.plain)
     }
 
+    private func sidebarTabButton(_ tab: SidebarTab) -> some View {
+        let isActive = vm.selectedSidebarTab == tab
+        return Button {
+            vm.selectedSidebarTab = tab
+        } label: {
+            Text(tab.title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isActive ? CXColor.accent : CXColor.textSoft)
+                .frame(maxWidth: .infinity, minHeight: 30)
+                .background(isActive ? CXColor.accentBg.opacity(0.72) : CXColor.surface)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(isActive ? CXColor.accent : CXColor.borderLight, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
     private func channelPill(_ channel: ChatChannel) -> some View {
         let isActive = vm.selectedChannel == channel
         let tint = channel == .wa ? CXColor.waGreen : CXColor.accent
@@ -213,5 +291,65 @@ struct ChatListView: View {
                 .overlay(Capsule().stroke(isActive ? tint.opacity(0.55) : CXColor.borderLight, lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    private var contactsPanel: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(CXColor.textMute)
+                TextField("Buscar contato", text: $vm.contactSearchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .foregroundStyle(CXColor.text)
+            }
+            .padding(.horizontal, CXSize.s3)
+            .frame(height: 36)
+            .background(CXColor.input)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
+            .padding(CXSize.s3)
+
+            ScrollView {
+                LazyVStack(spacing: CXSize.s1) {
+                    ForEach(vm.contactsDirectory) { contact in
+                        Button {
+                            vm.selectedSidebarTab = .chats
+                            vm.selectedChatID = contact.id
+                            Task { await vm.loadMessages(for: contact.id) }
+                        } label: {
+                            HStack(spacing: CXSize.s3) {
+                                CXAvatarView(title: contact.title, size: 34)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(contact.title)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(CXColor.text)
+                                        .lineLimit(1)
+                                    Text(contact.jid)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(CXColor.textMute)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Text(contact.isGroup ? "Grupo" : "Contato")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(CXColor.textMute)
+                            }
+                            .padding(.horizontal, CXSize.s3)
+                            .padding(.vertical, 8)
+                            .background(CXColor.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(CXColor.borderLight, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(CXSize.s2)
+            }
+        }
+        .background(
+            LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+        )
     }
 }

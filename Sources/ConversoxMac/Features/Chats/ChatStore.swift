@@ -30,6 +30,15 @@ enum ChatChannel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct ContactDirectoryEntry: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let jid: String
+    let connectionID: String
+    let isGroup: Bool
+    let updatedAt: Date
+}
+
 @MainActor
 final class ChatStore {
     private var byID: [String: Chat] = [:]
@@ -103,6 +112,28 @@ final class ChatStore {
         byID.values.reduce(0) { $0 + $1.unreadCount }
     }
 
+    func contactsDirectory(searchText: String, channel: ChatChannel) -> [ContactDirectoryEntry] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return allChatsSorted()
+            .filter { passesChannel($0, channel: channel) }
+            .filter { chat in
+                guard !query.isEmpty else { return true }
+                return chat.title.localizedCaseInsensitiveContains(query)
+                    || chat.jid.localizedCaseInsensitiveContains(query)
+            }
+            .map { chat in
+                ContactDirectoryEntry(
+                    id: chat.id,
+                    title: chat.title,
+                    jid: chat.jid,
+                    connectionID: chat.connectionID,
+                    isGroup: chat.isGroup,
+                    updatedAt: chat.updatedAt
+                )
+            }
+    }
+
     func filteredChats(
         searchText: String,
         filter: ChatFilter,
@@ -144,24 +175,6 @@ final class ChatStore {
 
     private func passesChannel(_ chat: Chat, channel: ChatChannel) -> Bool {
         guard channel != .all else { return true }
-
-        let normalized = chat.connectionID.lowercased()
-        let resolved: ChatChannel
-
-        if normalized.contains("evolution") || normalized.contains("whatsapp") || normalized.contains("wa") {
-            resolved = .wa
-        } else if normalized.contains("instagram") || normalized.contains("ig") {
-            resolved = .ig
-        } else if normalized.contains("telegram") || normalized.contains("tg") {
-            resolved = .tg
-        } else if normalized.contains("email") || normalized.contains("em") {
-            resolved = .em
-        } else if normalized.contains("sms") || normalized.contains("sm") {
-            resolved = .sm
-        } else {
-            resolved = .td
-        }
-
-        return resolved == channel
+        return chat.resolvedChannel == channel
     }
 }

@@ -1,16 +1,64 @@
 import Foundation
+import UniformTypeIdentifiers
+
+struct ComposerAttachment: Identifiable, Sendable {
+    let id: UUID
+    let fileName: String
+    let mimeType: String
+    let data: Data
+
+    init(id: UUID = UUID(), fileName: String, mimeType: String, data: Data) {
+        self.id = id
+        self.fileName = fileName
+        self.mimeType = mimeType
+        self.data = data
+    }
+
+    static func fromFileURL(_ fileURL: URL) throws -> ComposerAttachment {
+        let data = try Data(contentsOf: fileURL)
+        let fileName = fileURL.lastPathComponent
+        let mimeType = Self.guessMimeType(from: fileURL)
+        return ComposerAttachment(fileName: fileName, mimeType: mimeType, data: data)
+    }
+
+    private static func guessMimeType(from fileURL: URL) -> String {
+        if let type = UTType(filenameExtension: fileURL.pathExtension),
+           let mime = type.preferredMIMEType {
+            return mime
+        }
+        return "application/octet-stream"
+    }
+}
 
 struct SendMessageRequest: Encodable, Sendable {
     let jid: String
     let connectionID: String
     let instance: String?
     let text: String
+    let quotedMessageID: String?
+    let note: Bool
 
     enum CodingKeys: String, CodingKey {
         case jid
         case connectionID = "connection_id"
         case instance
         case text
+        case quotedMessageID = "quoted_msg_id"
+        case replyTo = "reply_to"
+        case note
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(jid, forKey: .jid)
+        try container.encode(connectionID, forKey: .connectionID)
+        try container.encodeIfPresent(instance, forKey: .instance)
+        try container.encode(text, forKey: .text)
+        try container.encodeIfPresent(quotedMessageID, forKey: .quotedMessageID)
+        try container.encodeIfPresent(quotedMessageID, forKey: .replyTo)
+        if note {
+            try container.encode(true, forKey: .note)
+        }
     }
 }
 
@@ -96,6 +144,57 @@ struct MarkReadRequest: Encodable, Sendable {
     }
 }
 
+struct GenericActionRequest: Encodable, Sendable {
+    let action: String
+    let jid: String
+    let connectionID: String
+    let payload: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case action
+        case jid
+        case connectionID = "connection_id"
+        case payload
+    }
+}
+
+struct GenericActionResponse: Decodable, Sendable {
+    let ok: Bool
+    let error: String?
+}
+
+struct FetchMediaRequest: Encodable, Sendable {
+    let action: String = "fetch_media"
+    let messageID: String
+    let jid: String
+    let connectionID: String
+    let mimeType: String?
+
+    enum CodingKeys: String, CodingKey {
+        case action
+        case messageID = "message_id"
+        case jid
+        case connectionID = "connection_id"
+        case mimeType = "mime_type"
+    }
+}
+
+struct FetchMediaResponse: Decodable, Sendable {
+    let ok: Bool
+    let mediaURL: String?
+    let cachedURL: String?
+    let mimeType: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case mediaURL = "media_url"
+        case cachedURL = "cached_url"
+        case mimeType = "mime_type"
+        case error
+    }
+}
+
 struct ChatsService {
     private let api = ConversoxAPI()
 
@@ -134,20 +233,71 @@ struct ChatsService {
         return MessageListResponse(
             ok: response.value.ok,
             messages: response.value.messages.map { $0.withChatID(chat.id) },
-            nextCursor: response.value.nextCursor
+            nextCursor: response.value.nextCursor,
+            hasOlder: response.value.hasOlder,
+            oldestTS: response.value.oldestTS
         )
     }
 
-    func sendMessage(session: PersistedSession, chat: Chat, text: String) async throws {
-        let response: ConversoxHTTPResponse<SendMessageResponse> = try await api.postJSON(
-            .send,
-            body: SendMessageRequest(jid: chat.jid, connectionID: chat.connectionID, instance: chat.instance, text: text),
+    func sendMessage(
+        session: PersistedSession,
+        chat: Chat,
+        text: String,
+        quotedMessageID: String? = nil,
+        note: Bool = false,
+        attachment: ComposerAttachment? = nil
+    ) async throws {
+        let response: SendMessageResponse
+        if let attachment {
+            response = try await sendMultipartMessage(
+                session: session,
+                chat: chat,
+                text: text,
+                quotedMessageID: quotedMessageID,
+                note: note,
+                attachment: attachment
+            )
+        } else {
+            let jsonResponse: ConversoxHTTPResponse<SendMessageResponse> = try await api.postJSON(
+                .send,
+                body: SendMessageRequest(
+                    jid: chat.jid,
+                    connectionID: chat.connectionID,
+                    instance: chat.instance,
+                    text: text,
+                    quotedMessageID: quotedMessageID,
+                    note: note
+                ),
+                session: session,
+                timeout: 30
+            )
+            response = jsonResponse.value
+        }
+
+        if !response.ok {
+            throw ConversoxError.backend(httpStatus: 502, backendError: response.error ?? "send_failed", rawBody: nil)
+        }
+    }
+
+    func fetchMedia(session: PersistedSession, chat: Chat, messageID: String, mimeType: String?) async throws -> String {
+        let response: ConversoxHTTPResponse<FetchMediaResponse> = try await api.postJSON(
+            .actions,
+            body: FetchMediaRequest(messageID: messageID, jid: chat.jid, connectionID: chat.connectionID, mimeType: mimeType),
             session: session,
             timeout: 30
         )
-        if !response.value.ok {
-            throw ConversoxError.backend(httpStatus: 502, backendError: response.value.error ?? "send_failed", rawBody: nil)
+
+        guard response.value.ok else {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "media_download_failed", rawBody: nil)
         }
+
+        if let mediaURL = response.value.mediaURL, !mediaURL.isEmpty {
+            return mediaURL
+        }
+        if let cachedURL = response.value.cachedURL, !cachedURL.isEmpty {
+            return cachedURL
+        }
+        throw ConversoxError.backend(httpStatus: 502, backendError: "media_download_failed", rawBody: nil)
     }
 
     func markRead(session: PersistedSession, chat: Chat) async throws {
@@ -157,6 +307,60 @@ struct ChatsService {
             session: session,
             timeout: 15
         )
+    }
+
+    func markUnread(session: PersistedSession, chat: Chat) async throws {
+        try await performAction(session: session, chat: chat, action: "mark_unread")
+    }
+
+    func setLowPriority(session: PersistedSession, chat: Chat, isLowPriority: Bool) async throws {
+        try await performAction(
+            session: session,
+            chat: chat,
+            action: "set_low_priority",
+            payload: ["is_low_priority": isLowPriority ? "1" : "0"]
+        )
+    }
+
+    func transfer(session: PersistedSession, chat: Chat, target: String) async throws {
+        try await performAction(
+            session: session,
+            chat: chat,
+            action: "transfer_chat",
+            payload: ["target": target]
+        )
+    }
+
+    func groupInvite(session: PersistedSession, chat: Chat, members: String) async throws {
+        try await performAction(
+            session: session,
+            chat: chat,
+            action: "group_invite",
+            payload: ["members": members]
+        )
+    }
+
+    private func performAction(
+        session: PersistedSession,
+        chat: Chat,
+        action: String,
+        payload: [String: String] = [:]
+    ) async throws {
+        let req = GenericActionRequest(
+            action: action,
+            jid: chat.jid,
+            connectionID: chat.connectionID,
+            payload: payload
+        )
+        let response: ConversoxHTTPResponse<GenericActionResponse> = try await api.postJSON(
+            .actions,
+            body: req,
+            session: session,
+            timeout: 20
+        )
+        if !response.value.ok {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? action, rawBody: nil)
+        }
     }
 
     func poll(
@@ -180,6 +384,40 @@ struct ChatsService {
             queryItems.append(URLQueryItem(name: "active_connection_id", value: activeChat.connectionID))
         }
         let response: ConversoxHTTPResponse<PollResponse> = try await api.getJSON(.poll, queryItems: queryItems, session: session, timeout: 12)
+        return response.value
+    }
+
+    private func sendMultipartMessage(
+        session: PersistedSession,
+        chat: Chat,
+        text: String,
+        quotedMessageID: String?,
+        note: Bool,
+        attachment: ComposerAttachment
+    ) async throws -> SendMessageResponse {
+        var fields: [String: String] = [
+            "jid": chat.jid,
+            "connection_id": chat.connectionID,
+            "text": text
+        ]
+        if let instance = chat.instance {
+            fields["instance"] = instance
+        }
+        if let quotedMessageID, !quotedMessageID.isEmpty {
+            fields["quoted_msg_id"] = quotedMessageID
+            fields["reply_to"] = quotedMessageID
+        }
+        if note {
+            fields["note"] = "1"
+        }
+
+        let response: ConversoxHTTPResponse<SendMessageResponse> = try await api.postMultipart(
+            .send,
+            fields: fields,
+            files: [MultipartFilePart(fieldName: "file", fileName: attachment.fileName, mimeType: attachment.mimeType, data: attachment.data)],
+            session: session,
+            timeout: 60
+        )
         return response.value
     }
 }

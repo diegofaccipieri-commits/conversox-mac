@@ -21,6 +21,22 @@ struct Chat: Codable, Identifiable, Sendable {
         "\(connectionID)|\(jid)"
     }
 
+    var resolvedChannel: ChatChannel {
+        let normalized = connectionID.lowercased()
+        if normalized.contains("evolution") || normalized.contains("whatsapp") || normalized.contains("wa") {
+            return .wa
+        } else if normalized.contains("instagram") || normalized.contains("ig") {
+            return .ig
+        } else if normalized.contains("telegram") || normalized.contains("tg") {
+            return .tg
+        } else if normalized.contains("email") || normalized.contains("em") {
+            return .em
+        } else if normalized.contains("sms") || normalized.contains("sm") {
+            return .sm
+        }
+        return .td
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case jid
