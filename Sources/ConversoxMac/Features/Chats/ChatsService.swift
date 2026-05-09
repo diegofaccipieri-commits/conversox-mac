@@ -345,9 +345,30 @@ private struct QuickRepliesResponse: Decodable, Sendable {
 }
 
 private struct QuickReplyItem: Decodable, Sendable {
+    let id: String?
     let body: String?
     let title: String?
     let shortcut: String?
+}
+
+struct QuickReplyEntry: Sendable {
+    let id: String?
+    let body: String
+    let shortcut: String?
+}
+
+private struct QuickReplyMutationResponse: Decodable, Sendable {
+    let ok: Bool
+    let quickReply: QuickReplyItem?
+    let deleted: String?
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case quickReply = "quick_reply"
+        case deleted
+        case error
+    }
 }
 
 struct ChatsService {
@@ -399,7 +420,7 @@ struct ChatsService {
         }
     }
 
-    func fetchQuickReplies(session: PersistedSession) async throws -> [String] {
+    func fetchQuickReplyEntries(session: PersistedSession) async throws -> [QuickReplyEntry] {
         var response = try await getQuickReplies(
             session: session,
             route: .customPrefixed("/quick_replies.php")
@@ -413,15 +434,62 @@ struct ChatsService {
 
         guard let response else { return [] }
 
-        let values = response.quickReplies.compactMap { item -> String? in
+        let values = response.quickReplies.compactMap { item -> QuickReplyEntry? in
             let body = item.body?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let body, !body.isEmpty { return body }
+            if let body, !body.isEmpty {
+                return QuickReplyEntry(id: item.id, body: body, shortcut: item.shortcut)
+            }
             let title = item.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let title, !title.isEmpty { return title }
-            return item.shortcut
+            if let title, !title.isEmpty {
+                return QuickReplyEntry(id: item.id, body: title, shortcut: item.shortcut)
+            }
+            if let shortcut = item.shortcut, !shortcut.isEmpty {
+                return QuickReplyEntry(id: item.id, body: shortcut, shortcut: item.shortcut)
+            }
+            return nil
         }
 
-        return Array(Set(values)).sorted()
+        var seen: Set<String> = []
+        var output: [QuickReplyEntry] = []
+        for entry in values {
+            if seen.insert(entry.body).inserted {
+                output.append(entry)
+            }
+        }
+        return output.sorted { $0.body.localizedCaseInsensitiveCompare($1.body) == .orderedAscending }
+    }
+
+    func fetchQuickReplies(session: PersistedSession) async throws -> [String] {
+        try await fetchQuickReplyEntries(session: session).map(\.body)
+    }
+
+    func createQuickReply(session: PersistedSession, shortcut: String, body: String) async throws -> QuickReplyEntry? {
+        let payload = [
+            "action": "create",
+            "shortcut": shortcut,
+            "body": body,
+            "title": body
+        ]
+        let response = try await mutateQuickReply(session: session, payload: payload)
+        guard response.ok else {
+            throw ConversoxError.backend(httpStatus: 400, backendError: response.error ?? "quick_reply_create_failed", rawBody: nil)
+        }
+        if let qr = response.quickReply {
+            let resolvedBody = qr.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? body
+            return QuickReplyEntry(id: qr.id, body: resolvedBody, shortcut: qr.shortcut ?? shortcut)
+        }
+        return nil
+    }
+
+    func deleteQuickReply(session: PersistedSession, id: String) async throws {
+        let payload = [
+            "action": "delete",
+            "id": id
+        ]
+        let response = try await mutateQuickReply(session: session, payload: payload)
+        guard response.ok else {
+            throw ConversoxError.backend(httpStatus: 400, backendError: response.error ?? "quick_reply_delete_failed", rawBody: nil)
+        }
     }
 
     func fetchMessages(
@@ -815,6 +883,26 @@ struct ChatsService {
             return response.value
         } catch let error as ConversoxError where error.httpStatus == 404 {
             return nil
+        }
+    }
+
+    private func mutateQuickReply(session: PersistedSession, payload: [String: String]) async throws -> QuickReplyMutationResponse {
+        do {
+            let response: ConversoxHTTPResponse<QuickReplyMutationResponse> = try await api.postJSON(
+                .customPrefixed("/quick_replies.php"),
+                body: payload,
+                session: session,
+                timeout: 20
+            )
+            return response.value
+        } catch let error as ConversoxError where error.httpStatus == 404 {
+            let response: ConversoxHTTPResponse<QuickReplyMutationResponse> = try await api.postJSON(
+                .absolutePath("/api/conversox3/quick_replies.php"),
+                body: payload,
+                session: session,
+                timeout: 20
+            )
+            return response.value
         }
     }
 }

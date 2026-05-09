@@ -223,7 +223,7 @@ struct ChatListView: View {
                     TextField("Nova quick reply ou /shortcut", text: $vm.quickReplyDraft)
                         .textFieldStyle(.roundedBorder)
                     Button("Adicionar") {
-                        vm.addQuickReply()
+                        Task { await vm.addQuickReply() }
                     }
                 }
                 ForEach(vm.quickReplies, id: \.self) { reply in
@@ -237,7 +237,7 @@ struct ChatListView: View {
                         .foregroundStyle(CXColor.textSoft)
                         Spacer()
                         Button(role: .destructive) {
-                            vm.removeQuickReply(reply)
+                            Task { await vm.removeQuickReply(reply) }
                         } label: {
                             Image(systemName: "trash")
                                 .font(.system(size: 11, weight: .bold))

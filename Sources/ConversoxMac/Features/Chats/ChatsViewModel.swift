@@ -87,6 +87,7 @@ final class ChatsViewModel: ObservableObject {
     private var chatsLoaded = false
     private var visibleLimit = 150
     private var didLoadQuickReplies = false
+    private var quickReplyIDByBody: [String: String] = [:]
 
     private let backoffSchedule: [UInt64] = [3, 15, 30, 60, 120]
     private var backoffIndex = 0
@@ -206,9 +207,14 @@ final class ChatsViewModel: ObservableObject {
         guard !didLoadQuickReplies, let session = currentSession else { return }
         didLoadQuickReplies = true
         do {
-            let values = try await chatsService.fetchQuickReplies(session: session)
-            if !values.isEmpty {
-                quickReplies = values
+            let entries = try await chatsService.fetchQuickReplyEntries(session: session)
+            if !entries.isEmpty {
+                quickReplies = entries.map(\.body)
+                quickReplyIDByBody = entries.reduce(into: [:]) { acc, item in
+                    if let id = item.id {
+                        acc[item.body] = id
+                    }
+                }
             }
         } catch {
             // Keep local defaults if backend endpoint is unavailable.
@@ -632,18 +638,50 @@ final class ChatsViewModel: ObservableObject {
         await sendMessage()
     }
 
-    func addQuickReply() {
+    func addQuickReply() async {
+        guard let session = currentSession else { return }
         let clean = quickReplyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
-        if !quickReplies.contains(clean) {
-            quickReplies.append(clean)
-            quickReplies.sort()
-            showToast("Quick reply adicionada.", isError: false)
+        let parsed = parseQuickReplyInput(clean)
+        guard !quickReplies.contains(parsed.body) else {
+            quickReplyDraft = ""
+            return
         }
-        quickReplyDraft = ""
+
+        do {
+            let created = try await chatsService.createQuickReply(session: session, shortcut: parsed.shortcut, body: parsed.body)
+            quickReplies.append(parsed.body)
+            quickReplies.sort()
+            if let id = created?.id {
+                quickReplyIDByBody[parsed.body] = id
+            }
+            showToast("Quick reply adicionada.", isError: false)
+            quickReplyDraft = ""
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao salvar quick reply."
+            showToast("Falha ao salvar quick reply.", isError: true)
+        }
     }
 
-    func removeQuickReply(_ value: String) {
+    func removeQuickReply(_ value: String) async {
+        guard let session = currentSession else { return }
+        if let id = quickReplyIDByBody[value] {
+            do {
+                try await chatsService.deleteQuickReply(session: session, id: id)
+                quickReplyIDByBody.removeValue(forKey: value)
+            } catch let error as ConversoxError {
+                errorMessage = error.userMessage
+                showToast(error.userMessage, isError: true)
+                return
+            } catch {
+                errorMessage = "Falha ao remover quick reply."
+                showToast("Falha ao remover quick reply.", isError: true)
+                return
+            }
+        }
         quickReplies.removeAll { $0 == value }
         showToast("Quick reply removida.", isError: false)
     }
@@ -689,6 +727,7 @@ final class ChatsViewModel: ObservableObject {
         stickerPackIDs = []
         stickerIDs = []
         selectedStickerPackID = nil
+        quickReplyIDByBody = [:]
 
         pollCursor = 1
         pollSeq = nil
@@ -821,5 +860,27 @@ final class ChatsViewModel: ObservableObject {
                 self.toast = nil
             }
         }
+    }
+
+    private func parseQuickReplyInput(_ input: String) -> (shortcut: String, body: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("/") {
+            let parts = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+            if let first = parts.first {
+                let shortcut = String(first)
+                let body = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines) : shortcut
+                return (normalizeShortcut(shortcut), body.isEmpty ? shortcut : body)
+            }
+        }
+        return (normalizeShortcut("/qr_\(UUID().uuidString.prefix(8))"), trimmed)
+    }
+
+    private func normalizeShortcut(_ raw: String) -> String {
+        var shortcut = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !shortcut.hasPrefix("/") {
+            shortcut = "/\(shortcut)"
+        }
+        let cleaned = shortcut.replacingOccurrences(of: "[^/a-z0-9_]", with: "_", options: .regularExpression)
+        return cleaned == "/" ? "/qr_\(Int(Date().timeIntervalSince1970))" : cleaned
     }
 }
