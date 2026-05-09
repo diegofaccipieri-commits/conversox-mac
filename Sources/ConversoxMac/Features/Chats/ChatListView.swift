@@ -33,7 +33,7 @@ struct ChatListView: View {
         VStack(spacing: 0) {
             VStack(spacing: CXSize.s3) {
                 HStack(spacing: CXSize.s2) {
-                    Text("ConversoxMac v0.1.1")
+                    Text(AppVersion.badgeLabel)
                         .font(.system(size: 10, weight: .heavy))
                         .foregroundStyle(CXColor.accent)
                         .padding(.horizontal, 9)
