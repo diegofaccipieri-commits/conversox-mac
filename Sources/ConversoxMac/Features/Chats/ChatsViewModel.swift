@@ -380,6 +380,9 @@ final class ChatsViewModel: ObservableObject {
         let trimmedText = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         let queuedAttachments = composerAttachments
         let replyID = replyTarget?.id
+        let replySenderName = replyTarget?.senderName
+        let replyPreviewText = replyTarget?.text
+        let replyFromMe = replyTarget?.fromMe
 
         guard !trimmedText.isEmpty || !queuedAttachments.isEmpty else { return }
         guard !isSendingMessage else { return }
@@ -403,6 +406,9 @@ final class ChatsViewModel: ObservableObject {
                     chat: chat,
                     text: outboundText,
                     quotedMessageID: replyID,
+                    replyToSenderName: replySenderName,
+                    replyToPreviewText: replyPreviewText,
+                    replyToFromMe: replyFromMe,
                     note: isInternalNotesMode
                 )
             } else {
@@ -416,6 +422,9 @@ final class ChatsViewModel: ObservableObject {
                         chat: chat,
                         text: textForThisMessage,
                         quotedMessageID: replyForThisMessage,
+                        replyToSenderName: index == 0 ? replySenderName : nil,
+                        replyToPreviewText: index == 0 ? replyPreviewText : nil,
+                        replyToFromMe: index == 0 ? replyFromMe : nil,
                         note: isInternalNotesMode,
                         attachment: attachment
                     )

@@ -600,20 +600,27 @@ struct CXMessageBubbleView: View {
             if message.fromMe { Spacer(minLength: 80) }
 
             VStack(alignment: .leading, spacing: 6) {
-                if !message.fromMe {
+                if !message.fromMe, !message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, message.type != "note" {
                     Text(message.senderName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(CXColor.accent)
                 }
 
                 if let quotedText = message.quotedText, !quotedText.isEmpty {
-                    Text(quotedText)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(CXColor.textSoft)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(CXColor.surface2)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let quotedSender = message.quotedSender, !quotedSender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(quotedSender)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(CXColor.textMute)
+                        }
+                        Text(quotedText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(CXColor.textSoft)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(CXColor.surface2)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
                 if message.isDeleted {

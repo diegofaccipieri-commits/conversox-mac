@@ -36,6 +36,10 @@ struct SendMessageRequest: Encodable, Sendable {
     let instance: String?
     let text: String
     let quotedMessageID: String?
+    let replyToSenderName: String?
+    let replyToPreviewText: String?
+    let replyToFromMe: Bool?
+    let mentionedJIDs: [String]
     let note: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -45,6 +49,10 @@ struct SendMessageRequest: Encodable, Sendable {
         case text
         case quotedMessageID = "quoted_msg_id"
         case replyTo = "reply_to"
+        case replyToSenderName = "reply_to_sender_name"
+        case replyToPreviewText = "reply_to_preview_text"
+        case replyToFromMe = "reply_to_from_me"
+        case mentionedJIDs = "mentioned_jids"
         case note
     }
 
@@ -56,6 +64,12 @@ struct SendMessageRequest: Encodable, Sendable {
         try container.encode(text, forKey: .text)
         try container.encodeIfPresent(quotedMessageID, forKey: .quotedMessageID)
         try container.encodeIfPresent(quotedMessageID, forKey: .replyTo)
+        try container.encodeIfPresent(replyToSenderName, forKey: .replyToSenderName)
+        try container.encodeIfPresent(replyToPreviewText, forKey: .replyToPreviewText)
+        try container.encodeIfPresent(replyToFromMe, forKey: .replyToFromMe)
+        if !mentionedJIDs.isEmpty {
+            try container.encode(mentionedJIDs, forKey: .mentionedJIDs)
+        }
         if note {
             try container.encode(true, forKey: .note)
         }
@@ -569,7 +583,7 @@ struct ChatsService {
     ) async throws {
         let text = sourceMessage.text.isEmpty ? "[\(sourceMessage.type)]" : sourceMessage.text
         let forwarded = "⤳ Encaminhado\n\(text)"
-        try await sendMessage(session: session, chat: targetChat, text: forwarded, quotedMessageID: nil, note: false)
+        try await sendMessage(session: session, chat: targetChat, text: forwarded, quotedMessageID: nil, replyToSenderName: nil, replyToPreviewText: nil, replyToFromMe: nil, note: false)
     }
 
     func sendMessage(
@@ -577,9 +591,13 @@ struct ChatsService {
         chat: Chat,
         text: String,
         quotedMessageID: String? = nil,
+        replyToSenderName: String? = nil,
+        replyToPreviewText: String? = nil,
+        replyToFromMe: Bool? = nil,
         note: Bool = false,
         attachment: ComposerAttachment? = nil
     ) async throws {
+        let mentionedJIDs = chat.isGroup ? extractMentionedJIDs(from: text) : []
         let response: SendMessageResponse
         if let attachment {
             response = try await sendMultipartMessage(
@@ -587,6 +605,10 @@ struct ChatsService {
                 chat: chat,
                 text: text,
                 quotedMessageID: quotedMessageID,
+                replyToSenderName: replyToSenderName,
+                replyToPreviewText: replyToPreviewText,
+                replyToFromMe: replyToFromMe,
+                mentionedJIDs: mentionedJIDs,
                 note: note,
                 attachment: attachment
             )
@@ -599,6 +621,10 @@ struct ChatsService {
                     instance: chat.instance,
                     text: text,
                     quotedMessageID: quotedMessageID,
+                    replyToSenderName: replyToSenderName,
+                    replyToPreviewText: replyToPreviewText,
+                    replyToFromMe: replyToFromMe,
+                    mentionedJIDs: mentionedJIDs,
                     note: note
                 ),
                 session: session,
@@ -835,6 +861,10 @@ struct ChatsService {
         chat: Chat,
         text: String,
         quotedMessageID: String?,
+        replyToSenderName: String?,
+        replyToPreviewText: String?,
+        replyToFromMe: Bool?,
+        mentionedJIDs: [String],
         note: Bool,
         attachment: ComposerAttachment
     ) async throws -> SendMessageResponse {
@@ -850,6 +880,18 @@ struct ChatsService {
             fields["quoted_msg_id"] = quotedMessageID
             fields["reply_to"] = quotedMessageID
         }
+        if let replyToSenderName, !replyToSenderName.isEmpty {
+            fields["reply_to_sender_name"] = replyToSenderName
+        }
+        if let replyToPreviewText, !replyToPreviewText.isEmpty {
+            fields["reply_to_preview_text"] = replyToPreviewText
+        }
+        if let replyToFromMe {
+            fields["reply_to_from_me"] = replyToFromMe ? "1" : "0"
+        }
+        for (index, mentionedJID) in mentionedJIDs.enumerated() {
+            fields["mentioned_jids[\(index)]"] = mentionedJID
+        }
         if note {
             fields["note"] = "1"
         }
@@ -862,6 +904,26 @@ struct ChatsService {
             timeout: 60
         )
         return response.value
+    }
+
+    private func extractMentionedJIDs(from text: String) -> [String] {
+        let regex = try? NSRegularExpression(pattern: "@([0-9]{10,15})", options: [])
+        let source = text as NSString
+        let range = NSRange(location: 0, length: source.length)
+        let matches = regex?.matches(in: text, options: [], range: range) ?? []
+        var result: [String] = []
+        var seen = Set<String>()
+        for match in matches {
+            guard match.numberOfRanges > 1 else { continue }
+            let digits = source.substring(with: match.range(at: 1))
+            guard !digits.isEmpty else { continue }
+            let jid = "\(digits)@s.whatsapp.net"
+            if !seen.contains(jid) {
+                seen.insert(jid)
+                result.append(jid)
+            }
+        }
+        return result
     }
 
     private func getContactsDirectory(
