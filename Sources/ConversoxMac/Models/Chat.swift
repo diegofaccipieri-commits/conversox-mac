@@ -7,6 +7,7 @@ struct Chat: Codable, Identifiable, Sendable {
     var title: String
     var unreadCount: Int
     var lastMessagePreview: String?
+    var avatarPath: String?
     var updatedAt: Date
     var chatCode: String?
     var isGroup: Bool
@@ -48,6 +49,7 @@ struct Chat: Codable, Identifiable, Sendable {
         case unread
         case lastMessagePreview = "last_message_preview"
         case lastMessage = "last_message"
+        case avatarPath = "avatar"
         case updatedAt = "updated_at"
         case lastMessageAt = "last_message_at"
         case sortTimestamp = "_sort_ts"
@@ -68,6 +70,7 @@ struct Chat: Codable, Identifiable, Sendable {
         title: String,
         unreadCount: Int,
         lastMessagePreview: String?,
+        avatarPath: String?,
         updatedAt: Date,
         chatCode: String?,
         isGroup: Bool,
@@ -84,6 +87,7 @@ struct Chat: Codable, Identifiable, Sendable {
         self.title = title
         self.unreadCount = unreadCount
         self.lastMessagePreview = lastMessagePreview
+        self.avatarPath = avatarPath
         self.updatedAt = updatedAt
         self.chatCode = chatCode
         self.isGroup = isGroup
@@ -109,6 +113,7 @@ struct Chat: Codable, Identifiable, Sendable {
             ?? 0
         lastMessagePreview = try container.decodeIfPresent(String.self, forKey: .lastMessage)
             ?? container.decodeIfPresent(String.self, forKey: .lastMessagePreview)
+        avatarPath = try container.decodeIfPresent(String.self, forKey: .avatarPath)
         chatCode = try container.decodeIfPresent(String.self, forKey: .chatCode)
         isGroup = try container.decodeIfPresent(Bool.self, forKey: .isGroup) ?? jid.contains("@g.us")
         badge = try container.decodeIfPresent(String.self, forKey: .badge)
@@ -137,6 +142,7 @@ struct Chat: Codable, Identifiable, Sendable {
         try container.encode(title, forKey: .name)
         try container.encode(unreadCount, forKey: .unread)
         try container.encodeIfPresent(lastMessagePreview, forKey: .lastMessage)
+        try container.encodeIfPresent(avatarPath, forKey: .avatarPath)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(chatCode, forKey: .chatCode)
         try container.encode(isGroup, forKey: .isGroup)

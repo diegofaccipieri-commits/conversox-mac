@@ -10,6 +10,6 @@ enum AppVersion {
     }
 
     static var badgeLabel: String {
-        "ConversoxMac v\(short) (\(build))"
+        "Conversox v\(short)"
     }
 }

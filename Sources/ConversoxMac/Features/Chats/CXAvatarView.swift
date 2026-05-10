@@ -3,6 +3,7 @@ import SwiftUI
 struct CXAvatarView: View {
     let title: String
     var size: CGFloat = 42
+    var imageURL: URL? = nil
 
     private var initials: String {
         let parts = title
@@ -16,13 +17,36 @@ struct CXAvatarView: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(CXColor.surface2)
-            Text(initials)
-                .font(.system(size: size * 0.34, weight: .bold))
-                .foregroundStyle(CXColor.accent)
+                .fill(
+                    LinearGradient(
+                        colors: [CXColor.surface3, CXColor.surface2],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            if let imageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Text(initials)
+                            .font(.system(size: size * 0.34, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.92))
+                    }
+                }
+            } else {
+                Text(initials)
+                    .font(.system(size: size * 0.34, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.92))
+            }
         }
         .frame(width: size, height: size)
-        .overlay(Circle().stroke(CXColor.borderLight, lineWidth: 1))
+        .clipShape(Circle())
+        .overlay(Circle().stroke(CXColor.borderLight.opacity(0.9), lineWidth: 1))
     }
 }
 
@@ -35,9 +59,7 @@ struct CXUnreadBadge: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 7)
             .frame(minHeight: 18)
-            .background(
-                LinearGradient(colors: [CXColor.danger, Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
+            .background(CXColor.accent)
             .clipShape(Capsule())
     }
 }
@@ -51,7 +73,7 @@ struct CXOriginBadge: View {
             .foregroundStyle(CXColor.textMute)
             .padding(.horizontal, 6)
             .frame(height: 16)
-            .background(CXColor.surface)
+            .background(CXColor.surface2)
             .clipShape(Capsule())
             .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
     }
@@ -65,12 +87,15 @@ struct CXIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 32, height: 32)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 36, height: 36)
                 .foregroundStyle(isOn ? CXColor.accent : CXColor.textSoft)
-                .background(isOn ? CXColor.accentBg.opacity(0.85) : CXColor.surface)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(isOn ? CXColor.accent.opacity(0.5) : CXColor.borderLight, lineWidth: 1))
+                .background(isOn ? CXColor.accentBg.opacity(0.85) : CXColor.surface2)
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .stroke(isOn ? CXColor.accent.opacity(0.5) : CXColor.borderLight, lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
     }

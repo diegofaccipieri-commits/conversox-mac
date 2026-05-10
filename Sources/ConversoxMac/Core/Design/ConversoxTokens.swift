@@ -3,19 +3,19 @@ import SwiftUI
 enum CXColor {
     static let bg = Color(red: 15 / 255, green: 23 / 255, blue: 42 / 255)
     static let surface = Color(red: 30 / 255, green: 41 / 255, blue: 59 / 255)
-    static let surface2 = Color(red: 22 / 255, green: 33 / 255, blue: 54 / 255)
-    static let surface3 = Color(red: 17 / 255, green: 26 / 255, blue: 45 / 255)
+    static let surface2 = Color(red: 13 / 255, green: 20 / 255, blue: 39 / 255)
+    static let surface3 = Color(red: 16 / 255, green: 25 / 255, blue: 46 / 255)
     static let composer = Color(red: 18 / 255, green: 29 / 255, blue: 49 / 255)
     static let input = Color(red: 15 / 255, green: 23 / 255, blue: 42 / 255)
-    static let border = Color(red: 38 / 255, green: 50 / 255, blue: 71 / 255)
-    static let borderLight = Color(red: 49 / 255, green: 64 / 255, blue: 87 / 255)
+    static let border = Color(red: 29 / 255, green: 41 / 255, blue: 67 / 255)
+    static let borderLight = Color(red: 39 / 255, green: 53 / 255, blue: 82 / 255)
     static let text = Color(red: 226 / 255, green: 232 / 255, blue: 240 / 255)
     static let textSoft = Color(red: 203 / 255, green: 213 / 255, blue: 225 / 255)
     static let textMute = Color(red: 148 / 255, green: 163 / 255, blue: 184 / 255)
     static let accent = Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
     static let accentStrong = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     static let accentBg = Color(red: 30 / 255, green: 58 / 255, blue: 102 / 255)
-    static let bubbleIn = Color(red: 20 / 255, green: 32 / 255, blue: 52 / 255)
+    static let bubbleIn = Color(red: 24 / 255, green: 30 / 255, blue: 46 / 255)
     static let bubbleInText = Color(red: 219 / 255, green: 234 / 255, blue: 254 / 255)
     static let bubbleOutStart = Color(red: 42 / 255, green: 93 / 255, blue: 154 / 255)
     static let bubbleOutEnd = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
@@ -46,11 +46,10 @@ extension View {
     func cxShellPanel() -> some View {
         self
             .background(CXColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: CXSize.shellRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: CXSize.shellRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: 0, style: .continuous)
                     .stroke(CXColor.border, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.42), radius: 28, x: 0, y: 18)
     }
 }

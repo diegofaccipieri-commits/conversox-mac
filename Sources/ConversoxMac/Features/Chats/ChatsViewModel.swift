@@ -103,6 +103,21 @@ final class ChatsViewModel: ObservableObject {
         chatStore.chat(for: selectedChatID)
     }
 
+    var operatorDisplayName: String {
+        let raw = currentSession?.user.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (raw?.isEmpty == false) ? raw! : "Operador"
+    }
+
+    var quickReplyShortcutChips: [String] {
+        let shortcuts = quickReplyBodyByShortcut.keys.sorted()
+        if !shortcuts.isEmpty {
+            return shortcuts
+        }
+        return Array(quickReplies.prefix(6)).enumerated().map { index, _ in
+            "/qr\(index + 1)"
+        }
+    }
+
     func loadInitialChatsIfNeeded() async {
         guard !chatsLoaded else { return }
         await reloadChats()
@@ -674,6 +689,12 @@ final class ChatsViewModel: ObservableObject {
     func sendQuickReply(_ text: String) async {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         draftMessage = text
+        await sendMessage()
+    }
+
+    func sendQuickReplyShortcut(_ shortcut: String) async {
+        guard !shortcut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        draftMessage = shortcut
         await sendMessage()
     }
 

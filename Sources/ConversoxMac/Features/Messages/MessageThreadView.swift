@@ -40,16 +40,22 @@ struct MessageThreadView: View {
         vm.chats.first(where: { $0.id == chatID })?.isGroup ?? false
     }
 
+    private var operatorName: String {
+        vm.operatorDisplayName
+    }
+
+    private var quickReplyChips: [String] {
+        Array(vm.quickReplyShortcutChips.prefix(8))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                CXColor.bg
-                RadialGradient(colors: [CXColor.accentBg.opacity(0.42), .clear], center: .topLeading, startRadius: 80, endRadius: 520)
-                RadialGradient(colors: [CXColor.waGreen.opacity(0.12), .clear], center: .topTrailing, startRadius: 80, endRadius: 520)
+                CXChatWallpaperView()
 
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: CXSize.s2) {
+                        LazyVStack(spacing: 10) {
                             if vm.hasOlderByChat[chatID] == true {
                                 Button {
                                     Task { await vm.loadOlderMessages(for: chatID) }
@@ -125,8 +131,9 @@ struct MessageThreadView: View {
                                 }
                             }
                         }
-                        .padding(CXSize.s4)
-                        .padding(.top, CXSize.s2)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 18)
+                        .padding(.bottom, 16)
                     }
                     .onChange(of: messages.last?.id) { _, newValue in
                         guard let newValue else { return }
@@ -297,7 +304,41 @@ struct MessageThreadView: View {
     }
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: CXSize.s2) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("ENVIANDO COMO:")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(CXColor.textMute)
+                Text(operatorName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(CXColor.textSoft)
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)
+                    .background(CXColor.surface2)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
+            }
+
+            if !quickReplyChips.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(quickReplyChips, id: \.self) { shortcut in
+                            Button(shortcut) {
+                                Task { await vm.sendQuickReplyShortcut(shortcut) }
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(CXColor.textSoft)
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
+                            .background(CXColor.surface2)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
+                        }
+                    }
+                }
+            }
+
             notesPanel
 
             if let reply = vm.replyTarget {
@@ -323,7 +364,7 @@ struct MessageThreadView: View {
                 }
                 .padding(.horizontal, CXSize.s3)
                 .padding(.vertical, 8)
-                .background(CXColor.surface)
+                .background(CXColor.surface2)
                 .clipShape(RoundedRectangle(cornerRadius: CXSize.rMd, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: CXSize.rMd, style: .continuous)
@@ -360,42 +401,47 @@ struct MessageThreadView: View {
                 }
             }
 
-            HStack(alignment: .bottom, spacing: CXSize.s2) {
+            HStack(alignment: .bottom, spacing: 10) {
                 CXIconButton(systemName: "paperclip") {
                     showFileImporter = true
                 }
-                CXIconButton(systemName: vm.isInternalNotesMode ? "note.text" : "note.text.badge.plus") {
-                    vm.toggleInternalNotesMode()
-                }
-                CXIconButton(systemName: "face.smiling") {
-                    showEmojiPicker.toggle()
-                    showStickerPicker = false
-                }
-                CXIconButton(systemName: "square.grid.2x2") {
-                    showStickerPicker.toggle()
-                    showEmojiPicker = false
-                    Task { await vm.loadStickerPacks() }
-                }
-                CXIconButton(systemName: isRecording ? "stop.circle.fill" : "mic.fill") {
-                    toggleRecording()
-                }
 
-                TextField("Digite uma mensagem", text: $vm.draftMessage, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .foregroundStyle(CXColor.text)
-                    .lineLimit(1...6)
-                    .padding(.horizontal, CXSize.s3)
-                    .padding(.vertical, 9)
-                    .background(CXColor.input)
-                    .clipShape(RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous)
-                            .stroke(vm.isInternalNotesMode ? CXColor.warning : CXColor.borderLight, lineWidth: 1)
-                    )
-                    .onSubmit {
-                        Task { await vm.sendMessage() }
+                HStack(alignment: .bottom, spacing: 10) {
+                    TextField("Digite uma mensagem...", text: $vm.draftMessage, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .foregroundStyle(CXColor.text)
+                        .lineLimit(1...6)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .onSubmit {
+                            Task { await vm.sendMessage() }
+                        }
+
+                    HStack(spacing: 8) {
+                        CXIconButton(systemName: vm.isInternalNotesMode ? "bolt.fill" : "bolt") {
+                            vm.toggleInternalNotesMode()
+                        }
+                        CXIconButton(systemName: "face.smiling") {
+                            showEmojiPicker.toggle()
+                            showStickerPicker = false
+                        }
+                        CXIconButton(systemName: "square.grid.2x2") {
+                            showStickerPicker.toggle()
+                            showEmojiPicker = false
+                            Task { await vm.loadStickerPacks() }
+                        }
+                        CXIconButton(systemName: isRecording ? "stop.circle.fill" : "mic.fill") {
+                            toggleRecording()
+                        }
                     }
+                }
+                .background(CXColor.input)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(vm.isInternalNotesMode ? CXColor.warning : CXColor.borderLight, lineWidth: 1)
+                )
 
                 Button {
                     Task { await vm.sendMessage() }
@@ -404,7 +450,7 @@ struct MessageThreadView: View {
                         ProgressView()
                             .controlSize(.small)
                             .tint(.white)
-                            .frame(width: 38, height: 38)
+                            .frame(width: 42, height: 42)
                             .background(
                                 LinearGradient(colors: [CXColor.accent, CXColor.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing)
                             )
@@ -413,7 +459,7 @@ struct MessageThreadView: View {
                         Image(systemName: "paperplane.fill")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundStyle(.white)
-                            .frame(width: 38, height: 38)
+                            .frame(width: 42, height: 42)
                             .background(
                                 LinearGradient(colors: [CXColor.accent, CXColor.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing)
                             )
@@ -482,7 +528,9 @@ struct MessageThreadView: View {
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
             }
         }
-        .padding(CXSize.s3)
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
         .background(CXColor.composer)
     }
 
@@ -564,14 +612,11 @@ struct MessageThreadView: View {
 
     private func dateSeparator(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(CXColor.textMute)
-            .padding(.horizontal, CXSize.s3)
-            .frame(height: 24)
-            .background(CXColor.surface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
-            .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(CXColor.textMute.opacity(0.9))
+            .tracking(1.1)
+            .textCase(.uppercase)
+            .padding(.vertical, 10)
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
@@ -720,7 +765,7 @@ struct CXMessageBubbleView: View {
 
     var body: some View {
         HStack {
-            if message.fromMe { Spacer(minLength: 80) }
+            if message.fromMe { Spacer(minLength: 96) }
 
             if hasGroupAvatarSlot {
                 Group {
@@ -743,14 +788,14 @@ struct CXMessageBubbleView: View {
                         }
                     }
                 }
-                .frame(width: 24, height: 24)
+                .frame(width: 28, height: 28)
                 .background(CXColor.surface2)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(CXColor.border, lineWidth: 1))
                 .opacity(showGroupAvatar ? 1 : 0)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 7) {
                 if message.type == "note" {
                     HStack(spacing: 4) {
                         Image(systemName: "lock.fill")
@@ -762,7 +807,7 @@ struct CXMessageBubbleView: View {
                     }
                 } else if !message.fromMe, !message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(message.senderName)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(CXColor.accent)
                 }
 
@@ -782,16 +827,16 @@ struct CXMessageBubbleView: View {
                 }
 
                 if message.isDeleted {
-                    Text("Mensagem apagada")
-                        .font(.system(size: 13, weight: .medium))
+                        Text("Mensagem apagada")
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(CXColor.textMute)
                         .italic()
                 } else {
                     mediaContent
                     if !message.text.isEmpty {
                         Text(message.text)
-                            .font(.system(size: 14))
-                            .lineSpacing(2)
+                            .font(.system(size: 15))
+                            .lineSpacing(3)
                             .foregroundStyle(message.fromMe ? CXColor.bubbleOutText : CXColor.bubbleInText)
                             .textSelection(.enabled)
                     }
@@ -833,22 +878,21 @@ struct CXMessageBubbleView: View {
                     }
                 }
             }
-            .padding(.horizontal, CXSize.s3)
-            .padding(.vertical, CXSize.s2)
-            .frame(maxWidth: 720, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 820, alignment: .leading)
             .background(bubbleBackground)
-            .clipShape(RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .opacity(message.isDeleted ? 0.72 : (message.status == "pending" ? 0.92 : 1))
             .saturation(message.isDeleted ? 0.24 : 1)
             .overlay(
-                RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(CXColor.accent.opacity(isHighlighted ? 0.16 : 0))
             )
-            .shadow(color: .black.opacity(0.22), radius: 2, x: 0, y: 1)
             .contextMenu {
                 Button("Responder") { onReply() }
                 if !message.isDeleted {
@@ -881,7 +925,7 @@ struct CXMessageBubbleView: View {
                 }
             }
 
-            if !message.fromMe { Spacer(minLength: 80) }
+            if !message.fromMe { Spacer(minLength: 96) }
         }
         .frame(maxWidth: .infinity)
     }
@@ -964,7 +1008,7 @@ struct CXMessageBubbleView: View {
         }
         .foregroundStyle(message.fromMe ? CXColor.bubbleOutText : CXColor.textSoft)
         .padding(.horizontal, 10)
-        .frame(height: 30)
+        .frame(height: 32)
         .background((message.fromMe ? CXColor.bubbleOutText : CXColor.surface2).opacity(0.12))
         .clipShape(Capsule())
     }
@@ -1011,16 +1055,16 @@ struct CXMessageBubbleView: View {
             if let quotedSender = message.quotedSender, !quotedSender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(quotedSender)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(CXColor.textMute)
+                    .foregroundStyle(message.fromMe ? CXColor.bubbleOutText.opacity(0.8) : CXColor.accent)
             }
             Text(quotedText)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(CXColor.textSoft)
+                .foregroundStyle(message.fromMe ? CXColor.bubbleOutText.opacity(0.88) : CXColor.textSoft)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(CXColor.surface2)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background((message.fromMe ? CXColor.bubbleOutText : CXColor.surface2).opacity(message.fromMe ? 0.12 : 0.84))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func initials(_ name: String) -> String {
@@ -1032,5 +1076,74 @@ struct CXMessageBubbleView: View {
         let first = parts[0].prefix(1)
         let second = parts.count > 1 ? parts[1].prefix(1) : ""
         return (first + second).uppercased()
+    }
+}
+
+private struct CXChatWallpaperView: View {
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                LinearGradient(
+                    colors: [CXColor.bg, Color(red: 12 / 255, green: 22 / 255, blue: 43 / 255)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                RadialGradient(
+                    colors: [CXColor.accentBg.opacity(0.34), .clear],
+                    center: .topLeading,
+                    startRadius: 30,
+                    endRadius: 320
+                )
+
+                RadialGradient(
+                    colors: [CXColor.waGreen.opacity(0.08), .clear],
+                    center: .topTrailing,
+                    startRadius: 20,
+                    endRadius: 240
+                )
+
+                Canvas { context, size in
+                    let stepX: CGFloat = 92
+                    let stepY: CGFloat = 92
+                    for row in stride(from: CGFloat(0), through: size.height + stepY, by: stepY) {
+                        for column in stride(from: CGFloat(0), through: size.width + stepX, by: stepX) {
+                            let base = CGPoint(x: column + 24, y: row + 24)
+                            let alpha = ((Int(row + column) / 20) % 2 == 0) ? 0.12 : 0.08
+                            let color = CXColor.borderLight.opacity(alpha)
+
+                            var circle = Path()
+                            circle.addEllipse(in: CGRect(x: base.x, y: base.y, width: 8, height: 8))
+                            context.stroke(circle, with: .color(color), lineWidth: 1)
+
+                            var star1 = Path()
+                            star1.move(to: CGPoint(x: base.x + 22, y: base.y + 4))
+                            star1.addLine(to: CGPoint(x: base.x + 34, y: base.y + 4))
+                            star1.move(to: CGPoint(x: base.x + 28, y: base.y - 2))
+                            star1.addLine(to: CGPoint(x: base.x + 28, y: base.y + 10))
+                            context.stroke(star1, with: .color(color), lineWidth: 1)
+
+                            var diamond = Path()
+                            diamond.move(to: CGPoint(x: base.x + 58, y: base.y))
+                            diamond.addLine(to: CGPoint(x: base.x + 66, y: base.y + 8))
+                            diamond.addLine(to: CGPoint(x: base.x + 58, y: base.y + 16))
+                            diamond.addLine(to: CGPoint(x: base.x + 50, y: base.y + 8))
+                            diamond.closeSubpath()
+                            context.stroke(diamond, with: .color(color), lineWidth: 1)
+
+                            var orbit = Path()
+                            orbit.addEllipse(in: CGRect(x: base.x + 6, y: base.y + 36, width: 30, height: 14))
+                            context.stroke(orbit, with: .color(color.opacity(0.9)), lineWidth: 1)
+
+                            var slash = Path()
+                            slash.move(to: CGPoint(x: base.x + 54, y: base.y + 40))
+                            slash.addLine(to: CGPoint(x: base.x + 70, y: base.y + 56))
+                            context.stroke(slash, with: .color(color), lineWidth: 1)
+                        }
+                    }
+                }
+            }
+            .ignoresSafeArea()
+        }
     }
 }

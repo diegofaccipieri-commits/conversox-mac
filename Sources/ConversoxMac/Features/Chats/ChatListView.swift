@@ -10,36 +10,47 @@ struct ChatListView: View {
     var body: some View {
         ZStack {
             CXColor.bg.ignoresSafeArea()
-            RadialGradient(colors: [CXColor.accentBg.opacity(0.35), .clear], center: .topLeading, startRadius: 80, endRadius: 520)
-                .ignoresSafeArea()
-            RadialGradient(colors: [CXColor.waGreen.opacity(0.12), .clear], center: .topTrailing, startRadius: 80, endRadius: 560)
-                .ignoresSafeArea()
 
-            HStack(spacing: CXSize.s3) {
+            HStack(spacing: 0) {
                 sidebar
-                    .frame(minWidth: 300, idealWidth: 360, maxWidth: 390)
+                    .frame(minWidth: 360, idealWidth: 410, maxWidth: 450)
                     .cxShellPanel()
 
                 mainPanel
                     .cxShellPanel()
             }
-            .padding(CXSize.s3)
+            .padding(0)
         }
         .preferredColorScheme(.dark)
         .overlay(alignment: .top) {
-            if let toast = vm.toast {
-                HStack(spacing: 8) {
-                    Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                    Text(toast.message)
-                        .font(.system(size: 12, weight: .semibold))
+            VStack(spacing: 8) {
+                if let notice = sessionStore.sessionNotice {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.shield.fill")
+                        Text(notice)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(CXColor.warning.opacity(0.95))
+                    .clipShape(Capsule())
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(toast.isError ? CXColor.danger.opacity(0.95) : CXColor.success.opacity(0.95))
-                .clipShape(Capsule())
-                .padding(.top, 16)
+
+                if let toast = vm.toast {
+                    HStack(spacing: 8) {
+                        Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                        Text(toast.message)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(toast.isError ? CXColor.danger.opacity(0.95) : CXColor.success.opacity(0.95))
+                    .clipShape(Capsule())
+                }
             }
+            .padding(.top, 18)
         }
         .task {
             await vm.loadInitialChatsIfNeeded()
@@ -52,25 +63,17 @@ struct ChatListView: View {
             VStack(spacing: CXSize.s3) {
                 HStack(spacing: CXSize.s2) {
                     Text(AppVersion.badgeLabel)
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundStyle(CXColor.accent)
-                        .padding(.horizontal, 9)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(CXColor.textSoft)
+                        .padding(.horizontal, 0)
                         .frame(height: 28)
-                        .background(CXColor.accentBg.opacity(0.72))
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(CXColor.accent.opacity(0.32), lineWidth: 1))
 
                     searchField
 
                     CXIconButton(systemName: "plus") {}
-                    CXIconButton(systemName: "bell") {}
-                    CXIconButton(systemName: "moon.fill", isOn: true) {}
-                }
-
-                HStack(spacing: CXSize.s2) {
-                    ForEach(SidebarTab.allCases) { tab in
-                        sidebarTabButton(tab)
-                    }
+                    CXIconButton(systemName: "bell.slash") {}
+                    CXIconButton(systemName: "sun.max.fill", isOn: true) {}
                 }
 
                 HStack(spacing: CXSize.s2) {
@@ -79,20 +82,22 @@ struct ChatListView: View {
                     }
                 }
             }
-            .padding(CXSize.s4)
-            .background(
-                LinearGradient(colors: [CXColor.surface, CXColor.surface2], startPoint: .top, endPoint: .bottom)
-            )
+            .padding(.horizontal, CXSize.s4)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+            .background(CXColor.surface)
 
             Divider().overlay(CXColor.border)
 
-            HStack(spacing: CXSize.s2) {
-                ForEach([ChatChannel.td, .wa, .ig, .tg, .em, .sm], id: \.id) { channel in
-                    channelPill(channel)
+            if vm.selectedSidebarTab == .contacts {
+                HStack(spacing: CXSize.s2) {
+                    ForEach([ChatChannel.td, .wa, .ig, .tg, .em, .sm], id: \.id) { channel in
+                        channelPill(channel)
+                    }
                 }
+                .padding(.horizontal, CXSize.s4)
+                .padding(.vertical, CXSize.s3)
             }
-            .padding(.horizontal, CXSize.s4)
-            .padding(.vertical, CXSize.s3)
 
             if vm.selectedSidebarTab == .chats {
                 if vm.isBootstrapping && vm.visibleChats.isEmpty {
@@ -106,13 +111,17 @@ struct ChatListView: View {
                     .padding(CXSize.s3)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: CXSize.s1) {
+                        LazyVStack(spacing: 2) {
                             ForEach(vm.visibleChats) { chat in
                                 Button {
                                     vm.selectedChatID = chat.id
                                     Task { await vm.loadMessages(for: chat.id) }
                                 } label: {
-                                    CXChatRowView(chat: chat, isActive: vm.selectedChatID == chat.id)
+                                    CXChatRowView(
+                                        chat: chat,
+                                        isActive: vm.selectedChatID == chat.id,
+                                        avatarURL: resolvedChatAvatarURL(chat)
+                                    )
                                 }
                                 .buttonStyle(.plain)
                                 .onAppear {
@@ -122,11 +131,9 @@ struct ChatListView: View {
                                 }
                             }
                         }
-                        .padding(CXSize.s2)
+                        .padding(8)
                     }
-                    .background(
-                        LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-                    )
+                    .background(CXColor.surface)
                 }
             } else {
                 contactsPanel
@@ -161,46 +168,61 @@ struct ChatListView: View {
 
     private func chatHeader(_ chat: Chat) -> some View {
         HStack(spacing: CXSize.s3) {
-            CXAvatarView(title: chat.title, size: 40)
+            CXAvatarView(title: chat.title, size: 44, imageURL: resolvedChatAvatarURL(chat))
             VStack(alignment: .leading, spacing: 4) {
                 Text(chat.title)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(CXColor.text)
                 HStack(spacing: 6) {
-                    CXOriginBadge(text: chat.connectionID.replacingOccurrences(of: "evolution:", with: ""))
-                    Text(chat.isGroup ? "grupo" : "online")
+                    Text(companyLabel(for: chat))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(CXColor.textSoft)
+                    Text(chat.isGroup ? "grupo" : "")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(chat.isGroup ? CXColor.textMute : CXColor.waGreen)
+                        .foregroundStyle(CXColor.textMute)
                 }
             }
 
             Spacer()
 
             CXIconButton(systemName: "link") {}
-            CXIconButton(systemName: "arrowshape.turn.up.right") { showTransferPrompt = true }
-            CXIconButton(systemName: "tray.and.arrow.down") {}
-            CXIconButton(systemName: "sparkles") { showQuickReplies = true }
+            CXIconButton(systemName: "point.3.connected.trianglepath.dotted") { showTransferPrompt = true }
+            CXIconButton(systemName: "arrow.up.left.and.arrow.down.right") {}
+            CXIconButton(systemName: "bell.badge") {}
+            Button {
+                showQuickReplies = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Resumir IA")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(CXColor.accentBg.opacity(0.95))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(CXColor.accent.opacity(0.55), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            CXIconButton(systemName: "bubble.left.and.text.bubble.right") {}
+            CXIconButton(systemName: "calendar") {}
             CXIconButton(systemName: vm.isInternalNotesMode ? "note.text" : "note.text.badge.plus") {
                 vm.toggleInternalNotesMode()
-            }
-            CXIconButton(systemName: "person.3.sequence.fill") {
-                Task { await vm.fetchSelectedGroupInvite() }
-            }
-            CXIconButton(systemName: "eye.slash") {
-                Task { await vm.markSelectedChatAsUnread() }
-            }
-            CXIconButton(systemName: "arrow.down.circle") {
-                Task { await vm.toggleSelectedChatLowPriority() }
             }
             CXIconButton(systemName: "checkmark") {
                 Task { await vm.markSelectedChatAsRead() }
             }
         }
-        .padding(.horizontal, CXSize.s4)
-        .padding(.vertical, CXSize.s3)
-        .background(
-            LinearGradient(colors: [CXColor.surface, CXColor.surface2], startPoint: .top, endPoint: .bottom)
-        )
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .background(CXColor.surface)
         .overlay(alignment: .bottom) {
             Rectangle().fill(CXColor.border).frame(height: 1)
         }
@@ -258,16 +280,30 @@ struct ChatListView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(CXColor.textMute)
-            TextField("Buscar", text: vm.selectedSidebarTab == .contacts ? $vm.contactSearchText : $vm.searchText)
+            TextField("Buscar conversas...", text: vm.selectedSidebarTab == .contacts ? $vm.contactSearchText : $vm.searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(CXColor.text)
+            if !(vm.selectedSidebarTab == .contacts ? vm.contactSearchText : vm.searchText).isEmpty {
+                Button {
+                    if vm.selectedSidebarTab == .contacts {
+                        vm.contactSearchText = ""
+                    } else {
+                        vm.searchText = ""
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(CXColor.textMute)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .padding(.horizontal, CXSize.s3)
-        .frame(height: 36)
+        .padding(.horizontal, 14)
+        .frame(height: 42)
         .background(CXColor.input)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
     }
 
     private func filterButton(_ filter: ChatFilter) -> some View {
@@ -284,13 +320,38 @@ struct ChatListView: View {
                 }
             }
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(isActive ? CXColor.accent : CXColor.textSoft)
+            .foregroundStyle(isActive ? CXColor.accent : CXColor.textMute)
             .frame(maxWidth: .infinity, minHeight: 30)
-            .background(isActive ? CXColor.accentBg.opacity(0.72) : CXColor.surface)
+            .background(isActive ? CXColor.accentBg.opacity(0.72) : CXColor.surface2)
             .clipShape(Capsule())
             .overlay(Capsule().stroke(isActive ? CXColor.accent : CXColor.borderLight, lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    private func companyLabel(for chat: Chat) -> String {
+        if let badge = chat.badge?.trimmingCharacters(in: .whitespacesAndNewlines), !badge.isEmpty {
+            return badge
+        }
+        let source = chat.connectionID
+            .replacingOccurrences(of: "evolution:", with: "")
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+        return source.capitalized
+    }
+
+    private func resolvedChatAvatarURL(_ chat: Chat) -> URL? {
+        if let raw = chat.avatarPath?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            if let absolute = URL(string: raw), absolute.scheme != nil {
+                return absolute
+            }
+            guard var components = URLComponents(url: AppConfig.shared.serverBaseURL, resolvingAgainstBaseURL: false) else {
+                return nil
+            }
+            components.path = raw.hasPrefix("/") ? raw : "/\(raw)"
+            return components.url
+        }
+        return vm.resolvedAvatarURL(jid: chat.jid, connectionID: chat.connectionID)
     }
 
     private func sidebarTabButton(_ tab: SidebarTab) -> some View {

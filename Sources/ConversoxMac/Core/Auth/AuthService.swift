@@ -4,6 +4,12 @@ import Foundation
 final class AuthService {
     static let shared = AuthService()
 
+    enum SendAuthorizationStatus {
+        case allowed
+        case blocked
+        case unknown
+    }
+
     private let keychain = KeychainStore.shared
     private let api = ConversoxAPI()
     private let sessionKey = "conversox.session"
@@ -47,6 +53,25 @@ final class AuthService {
 
     func logout(_ session: PersistedSession?) async {
         keychain.delete(for: sessionKey)
+    }
+
+    func probeSendAuthorization(using session: PersistedSession) async -> SendAuthorizationStatus {
+        do {
+            let _: ConversoxHTTPResponse<Data> = try await api.postJSONNoContent(
+                .send,
+                body: [String: String](),
+                session: session,
+                timeout: 10
+            )
+            return .allowed
+        } catch let error as ConversoxError {
+            if error.httpStatus == 401 || error.backendError == "unauthorized" || error.backendError == "not_authenticated" {
+                return .blocked
+            }
+            return .allowed
+        } catch {
+            return .unknown
+        }
     }
 
     private func resolveUserProfile(using session: PersistedSession) async throws -> UserProfile {

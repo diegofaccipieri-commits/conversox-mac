@@ -64,6 +64,8 @@ struct ConversoxError: Error, Sendable {
         switch backendError {
         case "not_authenticated":
             return ("Sessao ou chave de API invalida.", "Refaca login com uma chave valida.")
+        case "unauthorized":
+            return ("Chave atual sem permissao neste endpoint do Conversox.", "Use uma X-API-Key com permissao de envio ou ajuste o backend send.php.")
         case "not_authorized":
             return ("Usuario sem permissao para acessar o Conversox.", "Solicite permissao para seu usuario.")
         case "access_denied_connection", "forbidden_connection":
