@@ -416,6 +416,27 @@ struct Message: Codable, Identifiable, Sendable {
         try container.encode(reactions, forKey: .reactions)
     }
 
+    var participantIdentityKey: String? {
+        if let fromIdentifier, !fromIdentifier.isEmpty {
+            return fromIdentifier.lowercased()
+        }
+        if let senderJID, !senderJID.isEmpty {
+            return senderJID.lowercased()
+        }
+        let normalizedName = senderName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedName.isEmpty ? nil : "name:\(normalizedName)"
+    }
+
+    var participantAvatarJID: String? {
+        if let fromIdentifier, !fromIdentifier.isEmpty {
+            return fromIdentifier
+        }
+        if let senderJID, !senderJID.isEmpty {
+            return senderJID
+        }
+        return nil
+    }
+
     static func humanLabel(from jid: String) -> String {
         let cleaned = jid.split(separator: "@").first.map(String.init) ?? jid
         let digits = cleaned.filter(\.isNumber)

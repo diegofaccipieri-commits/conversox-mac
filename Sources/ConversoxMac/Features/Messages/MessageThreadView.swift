@@ -17,6 +17,8 @@ struct MessageThreadView: View {
     @State private var isRecording = false
     @State private var audioRecorder: AVAudioRecorder?
     @State private var recordingURL: URL?
+    @State private var isNearBottom = true
+    @State private var pendingNewMessages = 0
 
     private let quickReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
     private let quickEmojis = ["😀", "😄", "😂", "😍", "🙏", "👍", "🎉", "🤝", "✅", "📌", "🫶", "🔥"]
@@ -27,6 +29,14 @@ struct MessageThreadView: View {
 
     private var notes: [ChatNote] {
         vm.notesByChat[chatID] ?? []
+    }
+
+    private var chatConnectionID: String? {
+        vm.chats.first(where: { $0.id == chatID })?.connectionID
+    }
+
+    private var isGroupThread: Bool {
+        vm.chats.first(where: { $0.id == chatID })?.isGroup ?? false
     }
 
     var body: some View {
@@ -64,6 +74,9 @@ struct MessageThreadView: View {
                                 CXMessageBubbleView(
                                     message: message,
                                     mediaURL: vm.resolvedMediaURL(message.mediaURL),
+                                    groupAvatarURL: groupAvatarURL(for: index),
+                                    hasGroupAvatarSlot: hasGroupAvatarSlot(at: index),
+                                    showGroupAvatar: shouldShowGroupAvatar(at: index),
                                     quickReactions: quickReactions,
                                     onReply: { vm.setReplyTarget(message) },
                                     onFetchMedia: {
@@ -94,6 +107,17 @@ struct MessageThreadView: View {
                                     }
                                 )
                                 .id(message.id)
+                                .onAppear {
+                                    if message.id == messages.last?.id {
+                                        isNearBottom = true
+                                        pendingNewMessages = 0
+                                    }
+                                }
+                                .onDisappear {
+                                    if message.id == messages.last?.id {
+                                        isNearBottom = false
+                                    }
+                                }
                             }
                         }
                         .padding(CXSize.s4)
@@ -101,8 +125,50 @@ struct MessageThreadView: View {
                     }
                     .onChange(of: messages.last?.id) { _, newValue in
                         guard let newValue else { return }
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo(newValue, anchor: .bottom)
+                        if isNearBottom {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                proxy.scrollTo(newValue, anchor: .bottom)
+                            }
+                            pendingNewMessages = 0
+                        } else {
+                            pendingNewMessages += 1
+                        }
+                    }
+
+                    if !isNearBottom {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button {
+                                    guard let lastID = messages.last?.id else { return }
+                                    withAnimation(.easeOut(duration: 0.22)) {
+                                        proxy.scrollTo(lastID, anchor: .bottom)
+                                    }
+                                    isNearBottom = true
+                                    pendingNewMessages = 0
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.down")
+                                            .font(.system(size: 11, weight: .bold))
+                                        if pendingNewMessages > 0 {
+                                            Text("\(pendingNewMessages)")
+                                                .font(.system(size: 10, weight: .bold))
+                                        }
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 28)
+                                    .background(
+                                        LinearGradient(colors: [CXColor.accent, CXColor.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    )
+                                    .clipShape(Capsule())
+                                    .shadow(color: CXColor.accent.opacity(0.35), radius: 8, x: 0, y: 2)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.trailing, CXSize.s4)
+                                .padding(.bottom, CXSize.s4)
+                            }
                         }
                     }
                 }
@@ -550,6 +616,31 @@ struct MessageThreadView: View {
         }
     }
 
+    private func hasGroupAvatarSlot(at index: Int) -> Bool {
+        guard isGroupThread,
+              messages.indices.contains(index) else { return false }
+        let message = messages[index]
+        return !message.fromMe && message.type != "note" && message.participantIdentityKey != nil
+    }
+
+    private func shouldShowGroupAvatar(at index: Int) -> Bool {
+        guard hasGroupAvatarSlot(at: index) else { return false }
+        if index == 0 { return true }
+        let current = messages[index]
+        let previous = messages[index - 1]
+        guard !previous.fromMe, previous.type != "note" else { return true }
+        return current.participantIdentityKey != previous.participantIdentityKey
+    }
+
+    private func groupAvatarURL(for index: Int) -> URL? {
+        guard hasGroupAvatarSlot(at: index), shouldShowGroupAvatar(at: index), messages.indices.contains(index) else { return nil }
+        let message = messages[index]
+        return vm.resolvedAvatarURL(
+            jid: message.participantAvatarJID,
+            connectionID: message.connectionID ?? chatConnectionID
+        )
+    }
+
     private func toggleRecording() {
         if isRecording {
             audioRecorder?.stop()
@@ -584,6 +675,9 @@ struct MessageThreadView: View {
 struct CXMessageBubbleView: View {
     let message: Message
     let mediaURL: URL?
+    let groupAvatarURL: URL?
+    let hasGroupAvatarSlot: Bool
+    let showGroupAvatar: Bool
     let quickReactions: [String]
     let onReply: () -> Void
     let onFetchMedia: () -> Void
@@ -599,8 +693,45 @@ struct CXMessageBubbleView: View {
         HStack {
             if message.fromMe { Spacer(minLength: 80) }
 
+            if hasGroupAvatarSlot {
+                Group {
+                    if showGroupAvatar {
+                        if let groupAvatarURL {
+                            AsyncImage(url: groupAvatarURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image.resizable().scaledToFill()
+                                default:
+                                    Text(initials(message.senderName))
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(CXColor.text)
+                                }
+                            }
+                        } else {
+                            Text(initials(message.senderName))
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(CXColor.text)
+                        }
+                    }
+                }
+                .frame(width: 24, height: 24)
+                .background(CXColor.surface2)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(CXColor.border, lineWidth: 1))
+                .opacity(showGroupAvatar ? 1 : 0)
+            }
+
             VStack(alignment: .leading, spacing: 6) {
-                if !message.fromMe, !message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, message.type != "note" {
+                if message.type == "note" {
+                    HStack(spacing: 4) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(CXColor.warning)
+                        Text(message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Nota interna" : message.senderName)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(CXColor.warning)
+                    }
+                } else if !message.fromMe, !message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(message.senderName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(CXColor.accent)
@@ -654,7 +785,7 @@ struct CXMessageBubbleView: View {
 
                 HStack(spacing: 5) {
                     if message.isForwarded {
-                        Text("Encaminhada")
+                        Text("⤳ Encaminhado")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
                     }
@@ -680,6 +811,8 @@ struct CXMessageBubbleView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .background(bubbleBackground)
             .clipShape(RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous))
+            .opacity(message.isDeleted ? 0.72 : (message.status == "pending" ? 0.92 : 1))
+            .saturation(message.isDeleted ? 0.24 : 1)
             .overlay(
                 RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
@@ -839,5 +972,16 @@ struct CXMessageBubbleView: View {
         default:
             return "clock"
         }
+    }
+
+    private func initials(_ name: String) -> String {
+        let parts = name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ")
+            .map(String.init)
+        guard !parts.isEmpty else { return "?" }
+        let first = parts[0].prefix(1)
+        let second = parts.count > 1 ? parts[1].prefix(1) : ""
+        return (first + second).uppercased()
     }
 }

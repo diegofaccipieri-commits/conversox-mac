@@ -565,6 +565,21 @@ final class ChatsViewModel: ObservableObject {
         return components.url
     }
 
+    func resolvedAvatarURL(jid: String?, connectionID: String?) -> URL? {
+        guard let jid, !jid.isEmpty, let connectionID, !connectionID.isEmpty else { return nil }
+        guard var components = URLComponents(url: AppConfig.shared.serverBaseURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let tenant = (currentSession?.authSource ?? AppConfig.shared.defaultAuthSource).lowercased()
+        let prefix = tenant == "welcome" ? "/Welcome/Conversox/api/avatar.php" : "/Conversox/api/avatar.php"
+        components.path = prefix
+        components.queryItems = [
+            URLQueryItem(name: "jid", value: jid),
+            URLQueryItem(name: "conn", value: connectionID)
+        ]
+        return components.url
+    }
+
     func markSelectedChatAsRead() async {
         guard let session = currentSession,
               let chat = selectedChat else { return }
