@@ -19,6 +19,7 @@ struct MessageThreadView: View {
     @State private var recordingURL: URL?
     @State private var isNearBottom = true
     @State private var pendingNewMessages = 0
+    @State private var highlightedMessageID: String?
 
     private let quickReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
     private let quickEmojis = ["😀", "😄", "😂", "😍", "🙏", "👍", "🎉", "🤝", "✅", "📌", "🫶", "🔥"]
@@ -77,8 +78,12 @@ struct MessageThreadView: View {
                                     groupAvatarURL: groupAvatarURL(for: index),
                                     hasGroupAvatarSlot: hasGroupAvatarSlot(at: index),
                                     showGroupAvatar: shouldShowGroupAvatar(at: index),
+                                    isHighlighted: isMessageHighlighted(message),
                                     quickReactions: quickReactions,
                                     onReply: { vm.setReplyTarget(message) },
+                                    onJumpToQuoted: { quotedID in
+                                        jumpToQuotedMessage(quotedID, proxy: proxy)
+                                    },
                                     onFetchMedia: {
                                         Task { await vm.fetchMedia(for: chatID, message: message) }
                                     },
@@ -641,6 +646,28 @@ struct MessageThreadView: View {
         )
     }
 
+    private func isMessageHighlighted(_ message: Message) -> Bool {
+        guard let highlightedMessageID else { return false }
+        return message.id == highlightedMessageID || message.keyID == highlightedMessageID
+    }
+
+    private func jumpToQuotedMessage(_ quotedID: String, proxy: ScrollViewProxy) {
+        guard !quotedID.isEmpty else { return }
+        guard let target = messages.first(where: { $0.id == quotedID || $0.keyID == quotedID }) else { return }
+        withAnimation(.easeOut(duration: 0.24)) {
+            proxy.scrollTo(target.id, anchor: .center)
+        }
+        highlightedMessageID = target.id
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            if highlightedMessageID == target.id {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    highlightedMessageID = nil
+                }
+            }
+        }
+    }
+
     private func toggleRecording() {
         if isRecording {
             audioRecorder?.stop()
@@ -678,8 +705,10 @@ struct CXMessageBubbleView: View {
     let groupAvatarURL: URL?
     let hasGroupAvatarSlot: Bool
     let showGroupAvatar: Bool
+    let isHighlighted: Bool
     let quickReactions: [String]
     let onReply: () -> Void
+    let onJumpToQuoted: (String) -> Void
     let onFetchMedia: () -> Void
     let onEdit: () -> Void
     let onDeleteForMe: () -> Void
@@ -738,20 +767,18 @@ struct CXMessageBubbleView: View {
                 }
 
                 if let quotedText = message.quotedText, !quotedText.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let quotedSender = message.quotedSender, !quotedSender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text(quotedSender)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(CXColor.textMute)
+                    Group {
+                        if let quotedID = message.quotedMessageID, !quotedID.isEmpty {
+                            Button {
+                                onJumpToQuoted(quotedID)
+                            } label: {
+                                quotedBlock(quotedText: quotedText)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            quotedBlock(quotedText: quotedText)
                         }
-                        Text(quotedText)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(CXColor.textSoft)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(CXColor.surface2)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
                 if message.isDeleted {
@@ -816,6 +843,10 @@ struct CXMessageBubbleView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: CXSize.rLg, style: .continuous)
+                    .fill(CXColor.accent.opacity(isHighlighted ? 0.16 : 0))
             )
             .shadow(color: .black.opacity(0.22), radius: 2, x: 0, y: 1)
             .contextMenu {
@@ -972,6 +1003,24 @@ struct CXMessageBubbleView: View {
         default:
             return "clock"
         }
+    }
+
+    @ViewBuilder
+    private func quotedBlock(quotedText: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let quotedSender = message.quotedSender, !quotedSender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(quotedSender)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(CXColor.textMute)
+            }
+            Text(quotedText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(CXColor.textSoft)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(CXColor.surface2)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func initials(_ name: String) -> String {

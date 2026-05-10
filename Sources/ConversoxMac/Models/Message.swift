@@ -1,6 +1,14 @@
 import Foundation
 
 struct Message: Codable, Identifiable, Sendable {
+    enum MediaFetchState: String, Codable, Sendable {
+        case idle
+        case loading
+        case ready
+        case expired
+        case error
+    }
+
     struct Reaction: Codable, Hashable, Sendable {
         let emoji: String
         let jid: String?
@@ -31,6 +39,8 @@ struct Message: Codable, Identifiable, Sendable {
     let isForwarded: Bool
     let editedAt: String?
     let reactions: [Reaction]
+    let mediaFetchState: MediaFetchState
+    let mediaRetryCount: Int
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -74,6 +84,8 @@ struct Message: Codable, Identifiable, Sendable {
         case isForwarded = "forwarded"
         case editedAt = "edited_at"
         case reactions
+        case mediaFetchState = "media_fetch_state"
+        case mediaRetryCount = "media_retry_count"
     }
 
     enum QuotedCodingKeys: String, CodingKey {
@@ -109,7 +121,9 @@ struct Message: Codable, Identifiable, Sendable {
         isDeleted: Bool,
         isForwarded: Bool,
         editedAt: String?,
-        reactions: [Reaction]
+        reactions: [Reaction],
+        mediaFetchState: MediaFetchState = .idle,
+        mediaRetryCount: Int = 0
     ) {
         self.id = id
         self.keyID = keyID
@@ -135,6 +149,8 @@ struct Message: Codable, Identifiable, Sendable {
         self.isForwarded = isForwarded
         self.editedAt = editedAt
         self.reactions = reactions
+        self.mediaFetchState = mediaFetchState
+        self.mediaRetryCount = mediaRetryCount
     }
 
     init(from decoder: Decoder) throws {
@@ -234,6 +250,8 @@ struct Message: Codable, Identifiable, Sendable {
         isDeleted = explicitDeleted || deletedAt != nil
         editedAt = try container.decodeIfPresent(String.self, forKey: .editedAt)
         reactions = try container.decodeIfPresent([Reaction].self, forKey: .reactions) ?? []
+        mediaFetchState = try container.decodeIfPresent(MediaFetchState.self, forKey: .mediaFetchState) ?? .idle
+        mediaRetryCount = max(0, try container.decodeIfPresent(Int.self, forKey: .mediaRetryCount) ?? 0)
     }
 
     func withChatID(_ chatID: String) -> Message {
@@ -261,7 +279,9 @@ struct Message: Codable, Identifiable, Sendable {
             isDeleted: isDeleted,
             isForwarded: isForwarded,
             editedAt: editedAt,
-            reactions: reactions
+            reactions: reactions,
+            mediaFetchState: mediaFetchState,
+            mediaRetryCount: mediaRetryCount
         )
     }
 
@@ -290,7 +310,9 @@ struct Message: Codable, Identifiable, Sendable {
             isDeleted: isDeleted,
             isForwarded: isForwarded,
             editedAt: editedAt,
-            reactions: reactions
+            reactions: reactions,
+            mediaFetchState: .ready,
+            mediaRetryCount: mediaRetryCount
         )
     }
 
@@ -319,7 +341,9 @@ struct Message: Codable, Identifiable, Sendable {
             isDeleted: isDeleted,
             isForwarded: isForwarded,
             editedAt: Date().ISO8601Format(),
-            reactions: reactions
+            reactions: reactions,
+            mediaFetchState: mediaFetchState,
+            mediaRetryCount: mediaRetryCount
         )
     }
 
@@ -348,7 +372,9 @@ struct Message: Codable, Identifiable, Sendable {
             isDeleted: true,
             isForwarded: isForwarded,
             editedAt: editedAt,
-            reactions: reactions
+            reactions: reactions,
+            mediaFetchState: mediaFetchState,
+            mediaRetryCount: mediaRetryCount
         )
     }
 
@@ -384,7 +410,40 @@ struct Message: Codable, Identifiable, Sendable {
             isDeleted: isDeleted,
             isForwarded: isForwarded,
             editedAt: editedAt,
-            reactions: next
+            reactions: next,
+            mediaFetchState: mediaFetchState,
+            mediaRetryCount: mediaRetryCount
+        )
+    }
+
+    func withMediaFetchState(_ state: MediaFetchState, incrementRetry: Bool = false) -> Message {
+        Message(
+            id: id,
+            keyID: keyID,
+            chatID: chatID,
+            connectionID: connectionID,
+            senderName: senderName,
+            senderJID: senderJID,
+            fromIdentifier: fromIdentifier,
+            text: text,
+            sentAt: sentAt,
+            fromMe: fromMe,
+            type: type,
+            status: status,
+            mediaURL: mediaURL,
+            mimeType: mimeType,
+            fileName: fileName,
+            duration: duration,
+            quotedMessageID: quotedMessageID,
+            quotedText: quotedText,
+            quotedSender: quotedSender,
+            mentionedJIDs: mentionedJIDs,
+            isDeleted: isDeleted,
+            isForwarded: isForwarded,
+            editedAt: editedAt,
+            reactions: reactions,
+            mediaFetchState: state,
+            mediaRetryCount: incrementRetry ? mediaRetryCount + 1 : mediaRetryCount
         )
     }
 
@@ -414,6 +473,8 @@ struct Message: Codable, Identifiable, Sendable {
         try container.encode(isForwarded, forKey: .isForwarded)
         try container.encodeIfPresent(editedAt, forKey: .editedAt)
         try container.encode(reactions, forKey: .reactions)
+        try container.encode(mediaFetchState, forKey: .mediaFetchState)
+        try container.encode(mediaRetryCount, forKey: .mediaRetryCount)
     }
 
     var participantIdentityKey: String? {

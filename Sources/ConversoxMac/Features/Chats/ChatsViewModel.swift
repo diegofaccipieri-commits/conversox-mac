@@ -88,6 +88,7 @@ final class ChatsViewModel: ObservableObject {
     private var visibleLimit = 150
     private var didLoadQuickReplies = false
     private var quickReplyIDByBody: [String: String] = [:]
+    private var quickReplyBodyByShortcut: [String: String] = [:]
 
     private let backoffSchedule: [UInt64] = [3, 15, 30, 60, 120]
     private var backoffIndex = 0
@@ -214,6 +215,10 @@ final class ChatsViewModel: ObservableObject {
                     if let id = item.id {
                         acc[item.body] = id
                     }
+                }
+                quickReplyBodyByShortcut = entries.reduce(into: [:]) { acc, item in
+                    guard let shortcut = item.shortcut?.lowercased(), !shortcut.isEmpty else { return }
+                    acc[shortcut] = item.body
                 }
             }
         } catch {
@@ -456,19 +461,29 @@ final class ChatsViewModel: ObservableObject {
     func fetchMedia(for chatID: String, message: Message) async {
         guard let session = currentSession,
               let chat = chatStore.chat(for: chatID) else { return }
+        setMediaFetchState(chatID: chatID, messageID: message.id, state: .loading)
         do {
-            let mediaURL = try await chatsService.fetchMedia(
+            let mediaURL = try await chatsService.resolveMediaURLForMessage(
                 session: session,
                 chat: chat,
                 messageID: message.id,
+                existingMediaURL: message.mediaURL,
                 mimeType: message.mimeType
             )
             let messages = messageStore.updateMediaURL(chatID: chatID, messageID: message.id, mediaURL: mediaURL)
-            messagesByChat[chatID] = messages
+            messagesByChat[chatID] = messages.map {
+                $0.id == message.id ? $0.withMediaFetchState(.ready) : $0
+            }
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
+            if error.httpStatus == 410 || error.backendError == "media_expired_not_cached" {
+                setMediaFetchState(chatID: chatID, messageID: message.id, state: .expired, incrementRetry: true)
+                return
+            }
+            setMediaFetchState(chatID: chatID, messageID: message.id, state: .error, incrementRetry: true)
         } catch {
             errorMessage = "Falha ao carregar mídia."
+            setMediaFetchState(chatID: chatID, messageID: message.id, state: .error, incrementRetry: true)
         }
     }
 
@@ -667,18 +682,29 @@ final class ChatsViewModel: ObservableObject {
         let clean = quickReplyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         let parsed = parseQuickReplyInput(clean)
-        guard !quickReplies.contains(parsed.body) else {
-            quickReplyDraft = ""
-            return
-        }
 
         do {
-            let created = try await chatsService.createQuickReply(session: session, shortcut: parsed.shortcut, body: parsed.body)
+            let existingBody = quickReplyBodyByShortcut[parsed.shortcut.lowercased()]
+            let existingID = existingBody.flatMap { quickReplyIDByBody[$0] }
+
+            let result: QuickReplyEntry?
+            if let existingID {
+                result = try await chatsService.updateQuickReply(session: session, id: existingID, shortcut: parsed.shortcut, body: parsed.body)
+                if let existingBody {
+                    quickReplies.removeAll { $0 == existingBody }
+                    quickReplyIDByBody.removeValue(forKey: existingBody)
+                }
+            } else {
+                result = try await chatsService.createQuickReply(session: session, shortcut: parsed.shortcut, body: parsed.body)
+            }
+
+            quickReplies.removeAll { $0 == parsed.body }
             quickReplies.append(parsed.body)
             quickReplies.sort()
-            if let id = created?.id {
+            if let id = result?.id {
                 quickReplyIDByBody[parsed.body] = id
             }
+            quickReplyBodyByShortcut[parsed.shortcut.lowercased()] = parsed.body
             showToast("Quick reply adicionada.", isError: false)
             quickReplyDraft = ""
         } catch let error as ConversoxError {
@@ -696,6 +722,7 @@ final class ChatsViewModel: ObservableObject {
             do {
                 try await chatsService.deleteQuickReply(session: session, id: id)
                 quickReplyIDByBody.removeValue(forKey: value)
+                quickReplyBodyByShortcut = quickReplyBodyByShortcut.filter { $0.value != value }
             } catch let error as ConversoxError {
                 errorMessage = error.userMessage
                 showToast(error.userMessage, isError: true)
@@ -752,6 +779,7 @@ final class ChatsViewModel: ObservableObject {
         stickerIDs = []
         selectedStickerPackID = nil
         quickReplyIDByBody = [:]
+        quickReplyBodyByShortcut = [:]
 
         pollCursor = 1
         pollSeq = nil
@@ -870,9 +898,13 @@ final class ChatsViewModel: ObservableObject {
     private func resolveShortcutIfNeeded(_ text: String) -> String? {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.hasPrefix("/") else { return nil }
-        let token = String(clean.dropFirst()).lowercased()
+        let token = String(clean.split(separator: " ").first ?? "").lowercased()
         guard !token.isEmpty else { return nil }
-        return quickReplies.first { $0.lowercased().contains(token) }
+        if let exact = quickReplyBodyByShortcut[token] {
+            return exact
+        }
+        let fallbackToken = token.replacingOccurrences(of: "^/", with: "", options: .regularExpression)
+        return quickReplies.first { $0.lowercased().contains(fallbackToken) }
     }
 
     private func showToast(_ message: String, isError: Bool) {
@@ -906,5 +938,18 @@ final class ChatsViewModel: ObservableObject {
         }
         let cleaned = shortcut.replacingOccurrences(of: "[^/a-z0-9_]", with: "_", options: .regularExpression)
         return cleaned == "/" ? "/qr_\(Int(Date().timeIntervalSince1970))" : cleaned
+    }
+
+    private func setMediaFetchState(chatID: String, messageID: String, state: Message.MediaFetchState, incrementRetry: Bool = false) {
+        let current = messagesByChat[chatID] ?? messageStore.messages(for: chatID)
+        let updated = current.map { message -> Message in
+            guard message.id == messageID else { return message }
+            if incrementRetry {
+                return message.withMediaFetchState(state, incrementRetry: true)
+            }
+            return message.withMediaFetchState(state)
+        }
+        messageStore.setMessages(updated, for: chatID)
+        messagesByChat[chatID] = updated
     }
 }

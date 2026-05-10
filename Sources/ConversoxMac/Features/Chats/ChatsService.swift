@@ -495,6 +495,25 @@ struct ChatsService {
         return nil
     }
 
+    func updateQuickReply(session: PersistedSession, id: String, shortcut: String, body: String) async throws -> QuickReplyEntry? {
+        let payload = [
+            "action": "update",
+            "id": id,
+            "shortcut": shortcut,
+            "body": body,
+            "title": body
+        ]
+        let response = try await mutateQuickReply(session: session, payload: payload)
+        guard response.ok else {
+            throw ConversoxError.backend(httpStatus: 400, backendError: response.error ?? "quick_reply_update_failed", rawBody: nil)
+        }
+        if let qr = response.quickReply {
+            let resolvedBody = qr.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? body
+            return QuickReplyEntry(id: qr.id, body: resolvedBody, shortcut: qr.shortcut ?? shortcut)
+        }
+        return nil
+    }
+
     func deleteQuickReply(session: PersistedSession, id: String) async throws {
         let payload = [
             "action": "delete",
@@ -753,6 +772,21 @@ struct ChatsService {
         throw ConversoxError.backend(httpStatus: 502, backendError: "media_download_failed", rawBody: nil)
     }
 
+    func resolveMediaURLForMessage(
+        session: PersistedSession,
+        chat: Chat,
+        messageID: String,
+        existingMediaURL: String?,
+        mimeType: String?
+    ) async throws -> String {
+        if let existingMediaURL,
+           !existingMediaURL.isEmpty,
+           !isFetchMediaPlaceholder(existingMediaURL) {
+            return existingMediaURL
+        }
+        return try await fetchMedia(session: session, chat: chat, messageID: messageID, mimeType: mimeType)
+    }
+
     func markRead(session: PersistedSession, chat: Chat) async throws {
         _ = try await api.postJSONNoContent(
             .actions,
@@ -966,5 +1000,10 @@ struct ChatsService {
             )
             return response.value
         }
+    }
+
+    private func isFetchMediaPlaceholder(_ mediaURL: String) -> Bool {
+        let normalized = mediaURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "fetch:enc" || normalized.hasPrefix("fetch:")
     }
 }
