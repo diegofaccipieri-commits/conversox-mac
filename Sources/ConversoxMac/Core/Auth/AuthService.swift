@@ -13,6 +13,7 @@ final class AuthService {
     private let keychain = KeychainStore.shared
     private let api = ConversoxAPI()
     private let sessionKey = "conversox.session"
+    private var cachedSession: PersistedSession?
 
     private init() {}
 
@@ -43,15 +44,26 @@ final class AuthService {
             user: try await resolveUserProfile(using: bootstrap)
         )
         try save(session)
+        cachedSession = session
         return session
     }
 
     func restoreSession() throws -> PersistedSession? {
-        guard let data = try keychain.get(for: sessionKey) else { return nil }
-        return try JSONDecoder().decode(PersistedSession.self, from: data)
+        if let cachedSession {
+            return cachedSession
+        }
+
+        guard let data = try keychain.get(for: sessionKey) else {
+            cachedSession = nil
+            return nil
+        }
+        let decoded = try JSONDecoder().decode(PersistedSession.self, from: data)
+        cachedSession = decoded
+        return decoded
     }
 
     func logout(_ session: PersistedSession?) async {
+        cachedSession = nil
         keychain.delete(for: sessionKey)
     }
 
@@ -94,6 +106,7 @@ final class AuthService {
     private func save(_ session: PersistedSession) throws {
         let data = try JSONEncoder().encode(session)
         try keychain.set(data, for: sessionKey)
+        cachedSession = session
     }
 }
 
