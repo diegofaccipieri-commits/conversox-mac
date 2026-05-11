@@ -21,5 +21,13 @@
         <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
         <enclosure url="https://github.com/diegofaccipieri-commits/conversox-mac/releases/download/v0.2.7/ConversoxMac_v0.2.7.zip" length="3775206" type="application/octet-stream" sparkle:edSignature="vcvljxB1BVL5qxWey6roqxKteuDXGHWkF4juioWm8B1OqnvLguIH1XwaJ+Mvy2GNETi8YJYrf+h/9i7T4EvGAA=="/>
     </item>
+    <item>
+        <title>v0.2.8</title>
+        <pubDate>Mon, 11 May 2026 19:20:06 +0000</pubDate>
+        <sparkle:version>028</sparkle:version>
+        <sparkle:shortVersionString>0.2.8</sparkle:shortVersionString>
+        <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        <enclosure url="https://github.com/diegofaccipieri-commits/conversox-mac/releases/download/v0.2.8/ConversoxMac_v0.2.8.zip" length="3814650" type="application/octet-stream" sparkle:edSignature="zxJ550MgBy+ptsLO5b+IJllkWLknvvc54nfJai4YRg2dVHuQZQND7cb6CC0r3oAT53rauGQfrfqVC4gvGVyTCg=="/>
+    </item>
 </channel>
 </rss>
