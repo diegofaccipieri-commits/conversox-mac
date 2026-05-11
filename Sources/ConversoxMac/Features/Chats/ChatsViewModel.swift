@@ -605,7 +605,7 @@ final class ChatsViewModel: ObservableObject {
         components.path = prefix
         components.queryItems = [
             URLQueryItem(name: "jid", value: jid),
-            URLQueryItem(name: "conn", value: connectionID)
+            URLQueryItem(name: "connection_id", value: connectionID)
         ]
         return components.url
     }

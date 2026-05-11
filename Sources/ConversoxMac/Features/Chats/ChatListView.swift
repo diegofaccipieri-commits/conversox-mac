@@ -3,25 +3,52 @@ import SwiftUI
 struct ChatListView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vm: ChatsViewModel
+    @StateObject private var theme = CXTheme.shared
     @State private var showTransferPrompt = false
     @State private var showQuickReplies = false
     @State private var transferTarget = ""
 
     var body: some View {
         ZStack {
-            CXColor.bg.ignoresSafeArea()
+            // Body bg: solid --cx-bg + dois radials sutis (espelha CSS web `body`).
+            CXColor.bg
+                .ignoresSafeArea()
+            GeometryReader { proxy in
+                ZStack {
+                    RadialGradient(
+                        colors: [CXColor.surface3.opacity(0.55), .clear],
+                        center: UnitPoint(x: 0.18, y: 0.12),
+                        startRadius: 0,
+                        endRadius: max(proxy.size.width, proxy.size.height) * 0.45
+                    )
+                    RadialGradient(
+                        colors: [CXColor.accentBg.opacity(0.4), .clear],
+                        center: UnitPoint(x: 0.82, y: 0.10),
+                        startRadius: 0,
+                        endRadius: max(proxy.size.width, proxy.size.height) * 0.5
+                    )
+                }
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
 
             HStack(spacing: 0) {
                 sidebar
-                    .frame(minWidth: 360, idealWidth: 410, maxWidth: 450)
-                    .cxShellPanel()
+                    .frame(minWidth: 380, idealWidth: 420, maxWidth: 460)
+                    .overlay(alignment: .trailing) {
+                        Rectangle().fill(CXColor.border).frame(width: 1)
+                    }
 
                 mainPanel
-                    .cxShellPanel()
             }
-            .padding(0)
+            .background(CXColor.surface)
+            .clipShape(RoundedRectangle(cornerRadius: CXRadius.shell, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CXRadius.shell, style: .continuous)
+                    .stroke(CXColor.border, lineWidth: 1)
+            )
+            .padding(8)
         }
-        .preferredColorScheme(.dark)
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
                 if let notice = sessionStore.sessionNotice {
@@ -59,21 +86,67 @@ struct ChatListView: View {
     }
 
     private var sidebar: some View {
+        HStack(spacing: 0) {
+            channelRail
+                .frame(width: 60)
+                .background(CXColor.surface2)
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(CXColor.border).frame(width: 1)
+                }
+
+            sidebarColumn
+        }
+    }
+
+    // Coluna vertical à esquerda: logo Cx, filtros de canal, tabs CH/CT.
+    // Espelha .conversox-sidebar grid 68px column do v5.css (desktop >=901px).
+    private var channelRail: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(CXGradient.accentButton)
+                Text("Cx")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 40, height: 40)
+            .shadow(color: CXColor.accent.opacity(0.45), radius: 8, x: 0, y: 4)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+
+            ForEach([ChatChannel.td, .wa, .ig, .tg, .em, .sm], id: \.id) { channel in
+                railChannelButton(channel)
+            }
+
+            Spacer(minLength: 6)
+
+            // Tabs verticais CH (Chats) / CT (Contatos)
+            ForEach(SidebarTab.allCases, id: \.self) { tab in
+                railTabButton(tab)
+            }
+            .padding(.bottom, 14)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private var sidebarColumn: some View {
         VStack(spacing: 0) {
             VStack(spacing: CXSize.s3) {
                 HStack(spacing: CXSize.s2) {
                     Text(AppVersion.badgeLabel)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(CXColor.textSoft)
-                        .padding(.horizontal, 0)
-                        .frame(height: 28)
-                        .clipShape(Capsule())
+                        .font(.system(size: 9, weight: .heavy))
+                        .tracking(0.8)
+                        .foregroundStyle(CXColor.textMute)
+                        .padding(.leading, 2)
 
+                    Spacer(minLength: 4)
+                }
+
+                HStack(spacing: CXSize.s2) {
                     searchField
-
                     CXIconButton(systemName: "plus") {}
-                    CXIconButton(systemName: "bell.slash") {}
-                    CXIconButton(systemName: "sun.max.fill", isOn: true) {}
+                    CXIconButton(systemName: "bell.fill", isOn: true) {}
+                    CXIconButton(systemName: themeIconName, isOn: false) { cycleTheme() }
                 }
 
                 HStack(spacing: CXSize.s2) {
@@ -85,19 +158,9 @@ struct ChatListView: View {
             .padding(.horizontal, CXSize.s4)
             .padding(.top, 14)
             .padding(.bottom, 12)
-            .background(CXColor.surface)
+            .background(CXGradient.sidebarHeader)
 
             Divider().overlay(CXColor.border)
-
-            if vm.selectedSidebarTab == .contacts {
-                HStack(spacing: CXSize.s2) {
-                    ForEach([ChatChannel.td, .wa, .ig, .tg, .em, .sm], id: \.id) { channel in
-                        channelPill(channel)
-                    }
-                }
-                .padding(.horizontal, CXSize.s4)
-                .padding(.vertical, CXSize.s3)
-            }
 
             if vm.selectedSidebarTab == .chats {
                 if vm.isBootstrapping && vm.visibleChats.isEmpty {
@@ -133,11 +196,66 @@ struct ChatListView: View {
                         }
                         .padding(8)
                     }
-                    .background(CXColor.surface)
+                    .background(CXGradient.chatListBg)
                 }
             } else {
                 contactsPanel
             }
+        }
+    }
+
+    private func railChannelButton(_ channel: ChatChannel) -> some View {
+        let isActive = vm.selectedChannel == channel
+        return Button {
+            vm.selectedChannel = channel
+        } label: {
+            Text(channel.rawValue)
+                .font(.system(size: 10, weight: .heavy))
+                .tracking(0.4)
+                .foregroundStyle(isActive ? CXColor.accent : CXColor.textMute)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isActive ? CXColor.accentBg : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func railTabButton(_ tab: SidebarTab) -> some View {
+        let isActive = vm.selectedSidebarTab == tab
+        let label = tab == .chats ? "CH" : "CT"
+        return Button {
+            vm.selectedSidebarTab = tab
+        } label: {
+            Text(label)
+                .font(.system(size: 10, weight: .heavy))
+                .tracking(0.4)
+                .foregroundStyle(isActive ? CXColor.accent : CXColor.textMute)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isActive ? CXColor.accentBg : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Theme cycle
+
+    private var themeIconName: String {
+        switch theme.mode {
+        case .system: return "circle.lefthalf.filled"
+        case .light:  return "sun.max.fill"
+        case .dark:   return "moon.fill"
+        }
+    }
+
+    private func cycleTheme() {
+        switch theme.mode {
+        case .system: theme.mode = .light
+        case .light:  theme.mode = .dark
+        case .dark:   theme.mode = .system
         }
     }
 
@@ -299,11 +417,11 @@ struct ChatListView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 14)
-        .frame(height: 42)
+        .padding(.horizontal, 12)
+        .frame(height: 36)
         .background(CXColor.input)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(CXColor.inputBorder, lineWidth: 1))
     }
 
     private func filterButton(_ filter: ChatFilter) -> some View {

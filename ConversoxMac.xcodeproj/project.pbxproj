@@ -12,6 +12,7 @@
 		15CEE6FA5D57D73E0E0AC5AD /* ChatListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895C2A4373D814482F7091A6 /* ChatListView.swift */; };
 		38F4890232DF2C390FE88E7A /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6EF76195C2D2BA61AF3AD51 /* DateParser.swift */; };
 		4FBED8404E5E134DB1762509 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D6200BC03548C846D3A4DB /* RootView.swift */; };
+		50EE6B5519332B82EDD66E9B /* AuthedImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A50F9F56D76E7030860CFB /* AuthedImage.swift */; };
 		56C0FA117D2AAA86C65C827E /* ChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 751C97484FEC588F29E1367F /* ChatStore.swift */; };
 		5873FF15848729201AC116CF /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77053B8B3A7ED419C71A2D8 /* Chat.swift */; };
 		6A373118AF2D8101DF4FBF67 /* CXChatRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CE80DEBF8A6B50D7837CD8 /* CXChatRowView.swift */; };
@@ -50,6 +51,7 @@
 		8FC08E8024C110DFEC93146B /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		97418E815C8F4994E37AC842 /* ConversoxMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ConversoxMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A21392C80E1658A927923A15 /* MessageThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageThreadView.swift; sourceTree = "<group>"; };
+		A5A50F9F56D76E7030860CFB /* AuthedImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthedImage.swift; sourceTree = "<group>"; };
 		C569EDBCAC5654B0ED37B299 /* AuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModels.swift; sourceTree = "<group>"; };
 		C77053B8B3A7ED419C71A2D8 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		C9A94FF623BD91390CD52CA3 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
@@ -135,6 +137,7 @@
 				0D3250A4968D339E12A4586C /* Auth */,
 				AC2D89E9E21859D629763DE3 /* Config */,
 				1A754A189EA4BB3993F0CC99 /* Design */,
+				CE4921917469000A809D243B /* Media */,
 				EF8BBB6C2F673A89CDDF031A /* Network */,
 				2CB5B2B2069879896C9AA84C /* Notifications */,
 				C49286014122D59AC13DA012 /* Security */,
@@ -207,6 +210,14 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		CE4921917469000A809D243B /* Media */ = {
+			isa = PBXGroup;
+			children = (
+				A5A50F9F56D76E7030860CFB /* AuthedImage.swift */,
+			);
+			path = Media;
+			sourceTree = "<group>";
+		};
 		EF8BBB6C2F673A89CDDF031A /* Network */ = {
 			isa = PBXGroup;
 			children = (
@@ -277,6 +288,7 @@
 				88E346760FF17513449C8EDE /* AppVersion.swift in Sources */,
 				DCAAB51308A312D21F601001 /* AuthModels.swift in Sources */,
 				C00CCC075A9D5A75390E1888 /* AuthService.swift in Sources */,
+				50EE6B5519332B82EDD66E9B /* AuthedImage.swift in Sources */,
 				13E755524ED41BBD608CBD2E /* CXAvatarView.swift in Sources */,
 				6A373118AF2D8101DF4FBF67 /* CXChatRowView.swift in Sources */,
 				5873FF15848729201AC116CF /* Chat.swift in Sources */,

@@ -26,18 +26,20 @@ struct CXAvatarView: View {
                 )
 
             if let imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
+                AuthedImage(
+                    url: imageURL,
+                    contentMode: .fill,
+                    placeholder: {
+                        Text(initials)
+                            .font(.system(size: size * 0.34, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.92))
+                    },
+                    fallback: {
                         Text(initials)
                             .font(.system(size: size * 0.34, weight: .bold))
                             .foregroundStyle(.white.opacity(0.92))
                     }
-                }
+                )
             } else {
                 Text(initials)
                     .font(.system(size: size * 0.34, weight: .bold))
@@ -54,12 +56,13 @@ struct CXUnreadBadge: View {
     let count: Int
 
     var body: some View {
-        Text("\(count)")
-            .font(.system(size: 10, weight: .bold))
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: 10, weight: .heavy, design: .monospaced))
             .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .frame(minHeight: 18)
-            .background(CXColor.accent)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .frame(minWidth: 18)
+            .background(CXGradient.unread)
             .clipShape(Capsule())
     }
 }
