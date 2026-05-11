@@ -9,49 +9,52 @@ struct CXChatRowView: View {
     @State private var isHovered = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: CXSize.s3) {
-            CXAvatarView(title: chat.title, size: 40, imageURL: avatarURL)
+        HStack(alignment: .top, spacing: 12) {
+            avatar
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 topRow
                 previewRow
                 bottomRow
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .background(rowBackground)
-        .clipShape(RoundedRectangle(cornerRadius: CXRadius.md, style: .continuous))
+        .background(background)
         .overlay(
-            RoundedRectangle(cornerRadius: CXRadius.md, style: .continuous)
-                .stroke(isActive ? CXColor.accent.opacity(0.55) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: CXRadius.lg, style: .continuous)
+                .stroke(isActive ? CXColor.accentBg : Color.clear, lineWidth: 1)
         )
-        .opacity(chat.isLowPriority && !isActive ? 0.7 : 1)
+        .clipShape(RoundedRectangle(cornerRadius: CXRadius.lg, style: .continuous))
+        .opacity(chat.isLowPriority && !isActive ? 0.65 : 1)
         .onHover { isHovered = $0 }
         .contentShape(Rectangle())
     }
 
-    // MARK: - Rows
+    // MARK: - Pieces
+
+    private var avatar: some View {
+        ZStack(alignment: .bottomTrailing) {
+            CXAvatarView(title: chat.title, size: 40, imageURL: avatarURL)
+            CXChannelBadge(connectionID: chat.connectionID, size: 14)
+                .offset(x: 3, y: 3)
+        }
+        .frame(width: 40, height: 40)
+    }
 
     private var topRow: some View {
-        HStack(spacing: CXSize.s2) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(chat.title)
-                .font(.system(size: 15, weight: chat.unreadCount > 0 ? .bold : .semibold))
+                .font(.system(size: 13.5, weight: (chat.unreadCount > 0 || isActive) ? .bold : .medium))
                 .foregroundStyle(CXColor.text)
                 .lineLimit(1)
 
-            Spacer(minLength: CXSize.s2)
+            Spacer(minLength: 6)
 
-            HStack(spacing: 6) {
-                if chat.isLowPriority {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(CXColor.warning)
-                }
-                Text(relativeTime(chat.updatedAt))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(chat.unreadCount > 0 ? CXColor.accent : CXColor.textMute)
-            }
+            Text(relativeTime(chat.updatedAt))
+                .font(.system(size: 10.5, weight: chat.unreadCount > 0 ? .semibold : .regular))
+                .monospacedDigit()
+                .foregroundStyle(chat.unreadCount > 0 ? CXColor.accent : CXColor.textMute)
         }
     }
 
@@ -59,23 +62,28 @@ struct CXChatRowView: View {
         HStack(spacing: 6) {
             if let draft = draftPreview, !draft.isEmpty {
                 Text("Rascunho:")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(CXColor.accent)
                 Text(draft)
-                    .font(.system(size: 13, weight: .regular).italic())
+                    .font(.system(size: 12.5).italic())
                     .foregroundStyle(CXColor.accent.opacity(0.85))
+                    .lineLimit(1)
+            } else if chat.isTyping {
+                Text("● ● ●  digitando")
+                    .font(.system(size: 12.5).italic())
+                    .foregroundStyle(CXColor.accent)
                     .lineLimit(1)
             } else {
                 if chat.lastFromMe {
                     statusIcon
                 }
                 Text(lastPreviewText)
-                    .font(.system(size: 13, weight: chat.unreadCount > 0 ? .medium : .regular))
-                    .foregroundStyle(chat.unreadCount > 0 ? CXColor.textSoft : CXColor.textMute)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(CXColor.textSoft)
                     .lineLimit(1)
             }
 
-            Spacer(minLength: CXSize.s2)
+            Spacer(minLength: 4)
 
             if chat.unreadCount > 0 {
                 CXUnreadBadge(count: chat.unreadCount)
@@ -85,7 +93,14 @@ struct CXChatRowView: View {
 
     private var bottomRow: some View {
         HStack(spacing: 6) {
-            CXOriginBadge(text: companyLabel)
+            if let tag = chat.tagLabel {
+                CXTagPill(label: tag)
+            }
+            if let owner = chat.ownerLabel {
+                Text("@ \(owner)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(CXColor.textMute)
+            }
             if chat.isGroup {
                 Image(systemName: "person.3.fill")
                     .font(.system(size: 9, weight: .bold))
@@ -93,59 +108,23 @@ struct CXChatRowView: View {
             }
             Spacer()
         }
+        .padding(.top, 2)
     }
 
     private var statusIcon: some View {
-        // pending=clock, sent=checkmark, delivered=double, read=double sky.
-        // Hoje só temos last_from_me; usamos checkmark generic.
         Image(systemName: "checkmark")
-            .font(.system(size: 10, weight: .bold))
+            .font(.system(size: 9, weight: .bold))
             .foregroundStyle(CXColor.checkColor)
     }
 
-    private var rowBackground: some View {
-        Group {
-            if isActive {
-                LinearGradient(
-                    colors: [CXColor.accentBg.opacity(0.72), CXColor.surface2.opacity(0.98)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            } else if isHovered {
-                CXColor.alphaInk04
-            } else {
-                Color.clear
-            }
-        }
-    }
-
-    private var companyLabel: String {
-        if let badge = chat.badge?.trimmingCharacters(in: .whitespacesAndNewlines), !badge.isEmpty {
-            return badge.uppercased()
-        }
-        let source = chat.connectionID
-            .replacingOccurrences(of: "evolution:", with: "")
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-        return source.uppercased()
-    }
-
-    private var lastPreviewText: String {
-        if let preview = chat.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines), !preview.isEmpty {
-            return preview
-        }
-
-        switch chat.lastMessageType {
-        case "image":    return "📷 Imagem"
-        case "audio":    return "🎤 Áudio"
-        case "ptt":      return "🎤 PTT"
-        case "video":    return "🎬 Vídeo"
-        case "sticker":  return "Sticker"
-        case "document": return "📄 \(chat.lastMessageFileName ?? "Documento")"
-        case "location": return "📍 Localização"
-        case "contact":  return "👤 Contato"
-        default:
-            return "Sem mensagens"
+    @ViewBuilder
+    private var background: some View {
+        if isActive {
+            CXGradient.activeRow
+        } else if isHovered {
+            CXColor.alphaInk04
+        } else {
+            Color.clear
         }
     }
 
@@ -157,11 +136,54 @@ struct CXChatRowView: View {
         if Calendar.current.isDateInYesterday(date) {
             return "Ontem"
         }
-        let now = Date()
-        let diff = now.timeIntervalSince(date)
+        let diff = Date().timeIntervalSince(date)
         if diff < 7 * 24 * 3600 {
             return date.formatted(.dateTime.weekday(.abbreviated))
         }
         return date.formatted(.dateTime.day().month())
     }
+
+    private var lastPreviewText: String {
+        if let preview = chat.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines), !preview.isEmpty {
+            return preview
+        }
+        switch chat.lastMessageType {
+        case "image":    return "📷 Imagem"
+        case "audio":    return "🎤 Áudio"
+        case "ptt":      return "🎤 PTT"
+        case "video":    return "🎬 Vídeo"
+        case "sticker":  return "Sticker"
+        case "document": return "📄 \(chat.lastMessageFileName ?? "Documento")"
+        case "location": return "📍 Localização"
+        case "contact":  return "👤 Contato"
+        default:         return "Sem mensagens"
+        }
+    }
+}
+
+// MARK: - Convenience for tag / owner inference from existing Chat model
+
+private extension Chat {
+    var tagLabel: String? {
+        if let badge = badge?.trimmingCharacters(in: .whitespacesAndNewlines), !badge.isEmpty {
+            return badge.capitalized
+        }
+        return nil
+    }
+
+    var ownerLabel: String? {
+        // The current Chat model doesn't expose an assigned operator; surface the
+        // connection name as a soft fallback (mirrors web's "@ Atendente" line).
+        let raw = connectionID
+            .replacingOccurrences(of: "evolution:", with: "")
+            .replacingOccurrences(of: "telegram:", with: "")
+        let cleaned = raw
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        return cleaned.split(separator: " ").first.map(String.init)?.capitalized
+    }
+
+    var isTyping: Bool { false }
 }

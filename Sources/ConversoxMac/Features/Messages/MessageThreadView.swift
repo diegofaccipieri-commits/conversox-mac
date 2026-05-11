@@ -7,29 +7,19 @@ struct MessageThreadView: View {
 
     let chatID: String
 
-    @State private var showFileImporter = false
     @State private var isDropTargeted = false
     @State private var showForwardSheet = false
     @State private var editingMessage: Message?
     @State private var editedText = ""
-    @State private var showEmojiPicker = false
-    @State private var showStickerPicker = false
-    @State private var isRecording = false
-    @State private var audioRecorder: AVAudioRecorder?
-    @State private var recordingURL: URL?
     @State private var isNearBottom = true
     @State private var pendingNewMessages = 0
     @State private var highlightedMessageID: String?
+    @State private var lightboxURL: URL?
 
     private let quickReactions = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
-    private let quickEmojis = ["😀", "😄", "😂", "😍", "🙏", "👍", "🎉", "🤝", "✅", "📌", "🫶", "🔥"]
 
     private var messages: [Message] {
         vm.messagesByChat[chatID] ?? []
-    }
-
-    private var notes: [ChatNote] {
-        vm.notesByChat[chatID] ?? []
     }
 
     private var chatConnectionID: String? {
@@ -40,18 +30,10 @@ struct MessageThreadView: View {
         vm.chats.first(where: { $0.id == chatID })?.isGroup ?? false
     }
 
-    private var operatorName: String {
-        vm.operatorDisplayName
-    }
-
-    private var quickReplyChips: [String] {
-        Array(vm.quickReplyShortcutChips.prefix(8))
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                CXChatWallpaperView()
+                CXColor.bg.ignoresSafeArea()
 
                 ScrollViewReader { proxy in
                     GeometryReader { geo in
@@ -85,6 +67,7 @@ struct MessageThreadView: View {
                                     groupAvatarURL: groupAvatarURL(for: index),
                                     hasGroupAvatarSlot: hasGroupAvatarSlot(at: index),
                                     showGroupAvatar: shouldShowGroupAvatar(at: index),
+                                    isFirstOfGroup: isFirstOfGroup(at: index),
                                     isHighlighted: isMessageHighlighted(message),
                                     quickReactions: quickReactions,
                                     onReply: { vm.setReplyTarget(message) },
@@ -116,6 +99,9 @@ struct MessageThreadView: View {
                                     },
                                     onSaveSticker: {
                                         Task { await vm.saveStickerFromMessage(message) }
+                                    },
+                                    onOpenLightbox: { url in
+                                        lightboxURL = url
                                     }
                                 )
                                 .id(message.id)
@@ -150,41 +136,43 @@ struct MessageThreadView: View {
                         }
                     }
                     }
-
-                    if !isNearBottom {
-                        VStack {
-                            Spacer()
-                            HStack {
-                                Spacer()
-                                Button {
-                                    guard let lastID = messages.last?.id else { return }
-                                    withAnimation(.easeOut(duration: 0.22)) {
-                                        proxy.scrollTo(lastID, anchor: .bottom)
-                                    }
-                                    isNearBottom = true
-                                    pendingNewMessages = 0
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "arrow.down")
-                                            .font(.system(size: 11, weight: .bold))
-                                        if pendingNewMessages > 0 {
-                                            Text("\(pendingNewMessages)")
-                                                .font(.system(size: 10, weight: .bold))
-                                        }
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 10)
-                                    .frame(height: 28)
-                                    .background(
-                                        LinearGradient(colors: [CXColor.accent, CXColor.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                    )
-                                    .clipShape(Capsule())
-                                    .shadow(color: CXColor.accent.opacity(0.35), radius: 8, x: 0, y: 2)
+                    .overlay(alignment: .bottomTrailing) {
+                        if !isNearBottom {
+                            Button {
+                                guard let lastID = messages.last?.id else { return }
+                                withAnimation(.easeOut(duration: 0.22)) {
+                                    proxy.scrollTo(lastID, anchor: .bottom)
                                 }
-                                .buttonStyle(.plain)
-                                .padding(.trailing, CXSize.s4)
-                                .padding(.bottom, CXSize.s4)
+                                isNearBottom = true
+                                pendingNewMessages = 0
+                            } label: {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "arrow.down")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 32, height: 32)
+                                        .background(
+                                            LinearGradient(colors: [CXColor.accent, CXColor.accentStrong], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                        )
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 1)
+
+                                    if pendingNewMessages > 0 {
+                                        Text("\(pendingNewMessages)")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 4)
+                                            .frame(minWidth: 14, minHeight: 14)
+                                            .background(Color.red)
+                                            .clipShape(Capsule())
+                                            .offset(x: 4, y: -4)
+                                    }
+                                }
                             }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 12)
+                            .padding(.bottom, 12)
+                            .transition(.opacity)
                         }
                     }
                 }
@@ -200,21 +188,15 @@ struct MessageThreadView: View {
 
             Divider().overlay(CXColor.border)
 
-            composer
+            CXComposerView(chatID: chatID)
         }
         .background(CXColor.bg)
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [.image, .movie, .audio, .pdf, .plainText, .content],
-            allowsMultipleSelection: true
-        ) { result in
-            switch result {
-            case .success(let urls):
-                for url in urls {
-                    vm.attachFile(url: url)
+        .overlay {
+            if let lightboxURL {
+                CXLightboxView(url: lightboxURL) {
+                    self.lightboxURL = nil
                 }
-            case .failure:
-                vm.errorMessage = "Falha ao selecionar arquivos."
+                .transition(.opacity)
             }
         }
         .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
@@ -245,6 +227,9 @@ struct MessageThreadView: View {
         }
         .task(id: chatID) {
             await vm.loadMessages(for: chatID)
+            if isGroupThread {
+                await vm.loadGroupParticipantsForSelected()
+            }
         }
     }
 
@@ -307,319 +292,6 @@ struct MessageThreadView: View {
         .background(CXColor.surface2)
     }
 
-    private var composer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Signature bar (.signature-bar do CSS): label cinza + pill com nome.
-            HStack(spacing: CXSize.s2) {
-                Text("Enviando como:")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(CXColor.textMute)
-                Text(operatorName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(CXColor.textSoft)
-                    .padding(.horizontal, CXSize.s2)
-                    .frame(minHeight: 22)
-                    .background(CXColor.surface)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
-            }
-
-            if !quickReplyChips.isEmpty {
-                // .quick-reply-strip do CSS: chips 30px pill com /shortcut
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(quickReplyChips, id: \.self) { shortcut in
-                            Button(shortcut) {
-                                Task { await vm.sendQuickReplyShortcut(shortcut) }
-                            }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(CXColor.text)
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 30)
-                            .background(CXColor.surface)
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(CXColor.border, lineWidth: 1))
-                        }
-                    }
-                }
-            }
-
-            notesPanel
-
-            if let reply = vm.replyTarget {
-                HStack(spacing: CXSize.s2) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Respondendo")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(CXColor.accent)
-                        Text(reply.text.isEmpty ? mediaPlaceholder(type: reply.type) : reply.text)
-                            .font(.system(size: 11))
-                            .foregroundStyle(CXColor.textSoft)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    Button {
-                        vm.clearReplyTarget()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(CXColor.textMute)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, CXSize.s3)
-                .padding(.vertical, 8)
-                .background(CXColor.surface2)
-                .clipShape(RoundedRectangle(cornerRadius: CXSize.rMd, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CXSize.rMd, style: .continuous)
-                        .stroke(CXColor.borderLight, lineWidth: 1)
-                )
-            }
-
-            if !vm.composerAttachments.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: CXSize.s2) {
-                        ForEach(vm.composerAttachments) { attachment in
-                            HStack(spacing: 6) {
-                                Image(systemName: "paperclip")
-                                    .font(.system(size: 10, weight: .bold))
-                                Text(attachment.fileName)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .lineLimit(1)
-                                Button {
-                                    vm.removeAttachment(attachment)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 9, weight: .bold))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .foregroundStyle(CXColor.textSoft)
-                            .padding(.horizontal, 8)
-                            .frame(height: 24)
-                            .background(CXColor.surface)
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
-                        }
-                    }
-                }
-            }
-
-            // .composer-row do CSS: attach circular | input wrap radius xl | send circular gradient.
-            HStack(alignment: .bottom, spacing: CXSize.s2) {
-                Button {
-                    showFileImporter = true
-                } label: {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(CXColor.textSoft)
-                        .frame(width: 36, height: 36)
-                        .background(CXColor.surface)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(CXColor.borderLight, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-
-                HStack(alignment: .bottom, spacing: 6) {
-                    TextField("Digite uma mensagem...", text: $vm.draftMessage, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .foregroundStyle(CXColor.text)
-                        .lineLimit(1...6)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .onSubmit {
-                            Task { await vm.sendMessage() }
-                        }
-
-                    HStack(spacing: 4) {
-                        composerActionButton(
-                            systemName: vm.isInternalNotesMode ? "bolt.fill" : "bolt",
-                            tint: vm.isInternalNotesMode ? CXColor.warning : nil
-                        ) { vm.toggleInternalNotesMode() }
-                        composerActionButton(systemName: "face.smiling") {
-                            showEmojiPicker.toggle()
-                            showStickerPicker = false
-                        }
-                        composerActionButton(systemName: "square.grid.2x2") {
-                            showStickerPicker.toggle()
-                            showEmojiPicker = false
-                            Task { await vm.loadStickerPacks() }
-                        }
-                        composerActionButton(
-                            systemName: isRecording ? "stop.circle.fill" : "mic.fill",
-                            tint: isRecording ? CXColor.danger : nil
-                        ) { toggleRecording() }
-                    }
-                    .padding(.trailing, 4)
-                }
-                .padding(4)
-                .background(CXColor.input)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(vm.isInternalNotesMode ? CXColor.warning : CXColor.inputBorder, lineWidth: 1)
-                )
-
-                Button {
-                    Task { await vm.sendMessage() }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(sendDisabled ? AnyShapeStyle(CXColor.surface2) : AnyShapeStyle(CXGradient.accentButton))
-                            .overlay(Circle().stroke(sendDisabled ? CXColor.borderLight : CXColor.accent.opacity(0.6), lineWidth: 1))
-                        if vm.isSendingMessage {
-                            ProgressView().controlSize(.small).tint(.white)
-                        } else {
-                            Image(systemName: "paperplane.fill")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(sendDisabled ? CXColor.textMute : .white)
-                        }
-                    }
-                    .frame(width: 36, height: 36)
-                    .shadow(color: sendDisabled ? .clear : CXColor.accent.opacity(0.35), radius: 8, x: 0, y: 3)
-                }
-                .buttonStyle(.plain)
-                .disabled(sendDisabled)
-            }
-
-            if showEmojiPicker {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(quickEmojis, id: \.self) { emoji in
-                            Button(emoji) {
-                                vm.draftMessage += emoji
-                            }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 20))
-                        }
-                    }
-                }
-                .padding(8)
-                .background(CXColor.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
-            }
-
-            if showStickerPicker {
-                VStack(alignment: .leading, spacing: 8) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(vm.stickerPackIDs, id: \.self) { packID in
-                                Button(packID) {
-                                    Task { await vm.loadStickers(packID: packID) }
-                                }
-                                .buttonStyle(.plain)
-                                .font(.system(size: 10, weight: .semibold))
-                                .padding(.horizontal, 8)
-                                .frame(height: 22)
-                                .background(vm.selectedStickerPackID == packID ? CXColor.accentBg : CXColor.surface)
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(vm.selectedStickerPackID == packID ? CXColor.accent : CXColor.borderLight, lineWidth: 1))
-                            }
-                        }
-                    }
-
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(minimum: 48)), count: 6), spacing: 8) {
-                        ForEach(vm.stickerIDs, id: \.self) { stickerID in
-                            Button("🙂") {
-                                Task { await vm.sendSticker(stickerID: stickerID) }
-                            }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 20))
-                            .frame(height: 40)
-                            .frame(maxWidth: .infinity)
-                            .background(CXColor.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                    }
-                }
-                .padding(8)
-                .background(CXColor.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(CXColor.borderLight, lineWidth: 1))
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
-        .background(CXColor.composer)
-        .overlay(alignment: .top) {
-            Rectangle().fill(CXColor.composerBorder).frame(height: 1)
-        }
-    }
-
-    // Botão circular 30pt usado dentro do composer-input-wrap (espelha .composer-input-actions button)
-    @ViewBuilder
-    private func composerActionButton(systemName: String, tint: Color? = nil, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(tint ?? CXColor.textSoft)
-                .frame(width: 30, height: 30)
-                .background(
-                    Circle().fill((tint ?? Color.clear).opacity(tint == nil ? 0 : 0.15))
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var notesPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if !notes.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(notes) { note in
-                            HStack(spacing: 6) {
-                                Text(note.text)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .lineLimit(1)
-                                if let author = note.author {
-                                    Text(author)
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(CXColor.textMute)
-                                }
-                                Button {
-                                    Task { await vm.removeNote(noteID: note.id, chatID: chatID) }
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 9, weight: .bold))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 8)
-                            .frame(height: 24)
-                            .background(CXColor.note.opacity(0.2))
-                            .clipShape(Capsule())
-                        }
-                    }
-                }
-            }
-
-            HStack(spacing: 8) {
-                TextField("Adicionar nota interna", text: $vm.noteDraft)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11))
-                    .padding(.horizontal, 8)
-                    .frame(height: 28)
-                    .background(CXColor.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Button("Salvar") {
-                    Task { await vm.addNote(for: chatID) }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(CXColor.warning)
-            }
-        }
-    }
-
-    private var sendDisabled: Bool {
-        let textEmpty = vm.draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return vm.isSendingMessage || (textEmpty && vm.composerAttachments.isEmpty)
-    }
 
     private func shouldShowDateSeparator(at index: Int) -> Bool {
         guard messages.indices.contains(index) else { return false }
@@ -687,16 +359,6 @@ struct MessageThreadView: View {
         }
     }
 
-    private func mediaPlaceholder(type: String) -> String {
-        switch type {
-        case "image": return "[imagem]"
-        case "audio", "ptt": return "[audio]"
-        case "video", "gif": return "[video]"
-        case "document": return "[documento]"
-        case "sticker": return "[sticker]"
-        default: return "[mensagem]"
-        }
-    }
 
     private func hasGroupAvatarSlot(at index: Int) -> Bool {
         guard isGroupThread,
@@ -723,6 +385,19 @@ struct MessageThreadView: View {
         )
     }
 
+    private func isFirstOfGroup(at index: Int) -> Bool {
+        guard messages.indices.contains(index) else { return true }
+        if index == 0 { return true }
+        let current = messages[index]
+        let previous = messages[index - 1]
+        if previous.fromMe != current.fromMe { return true }
+        if (previous.type == "note") != (current.type == "note") { return true }
+        if !current.fromMe, current.participantIdentityKey != previous.participantIdentityKey { return true }
+        let gap = current.sentAt.timeIntervalSince(previous.sentAt)
+        if gap > 90 { return true }
+        return false
+    }
+
     private func isMessageHighlighted(_ message: Message) -> Bool {
         guard let highlightedMessageID else { return false }
         return message.id == highlightedMessageID || message.keyID == highlightedMessageID
@@ -745,35 +420,6 @@ struct MessageThreadView: View {
         }
     }
 
-    private func toggleRecording() {
-        if isRecording {
-            audioRecorder?.stop()
-            isRecording = false
-            if let url = recordingURL {
-                vm.attachFile(url: url)
-            }
-            return
-        }
-
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cx-ptt-\(UUID().uuidString).m4a")
-
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 12_000,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
-        ]
-
-        do {
-            audioRecorder = try AVAudioRecorder(url: tempURL, settings: settings)
-            audioRecorder?.record()
-            recordingURL = tempURL
-            isRecording = true
-        } catch {
-            vm.errorMessage = "Falha ao iniciar gravação de áudio."
-        }
-    }
 }
 
 struct CXMessageBubbleView: View {
@@ -782,6 +428,7 @@ struct CXMessageBubbleView: View {
     let groupAvatarURL: URL?
     let hasGroupAvatarSlot: Bool
     let showGroupAvatar: Bool
+    let isFirstOfGroup: Bool
     let isHighlighted: Bool
     let quickReactions: [String]
     let onReply: () -> Void
@@ -794,10 +441,11 @@ struct CXMessageBubbleView: View {
     let onForward: () -> Void
     let onRetry: () -> Void
     let onSaveSticker: () -> Void
+    var onOpenLightbox: ((URL) -> Void)? = nil
 
     var body: some View {
-        HStack {
-            if message.fromMe { Spacer(minLength: 96) }
+        HStack(alignment: .bottom, spacing: 8) {
+            if message.fromMe { Spacer(minLength: 64) }
 
             if hasGroupAvatarSlot {
                 Group {
@@ -841,10 +489,10 @@ struct CXMessageBubbleView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(CXColor.warning)
                     }
-                } else if !message.fromMe, !message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                } else if !message.fromMe, isFirstOfGroup, !message.senderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(message.senderName)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(CXColor.accent)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.cxAvatar(for: message.senderName))
                 }
 
                 if let quotedText = message.quotedText, !quotedText.isEmpty {
@@ -863,10 +511,11 @@ struct CXMessageBubbleView: View {
                 }
 
                 if message.isDeleted {
-                        Text("Mensagem apagada")
+                    Text("Mensagem apagada")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(CXColor.textMute)
                         .italic()
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     mediaContent
                     if !message.text.isEmpty {
@@ -875,6 +524,7 @@ struct CXMessageBubbleView: View {
                             .lineSpacing(3)
                             .foregroundStyle(message.fromMe ? CXColor.bubbleOutText : CXColor.bubbleInText)
                             .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
@@ -891,39 +541,49 @@ struct CXMessageBubbleView: View {
                     }
                 }
 
-                HStack(spacing: 5) {
-                    if message.isForwarded {
-                        Text("⤳ Encaminhado")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
-                    }
-                    if message.editedAt != nil {
-                        Text("editada")
-                            .font(.system(size: 10, weight: .medium))
-                            .italic()
-                            .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
-                    }
-                    Spacer(minLength: 4)
-                    Text(message.sentAt == .distantPast ? "" : message.sentAt.formatted(.dateTime.hour().minute()))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
-                    if message.fromMe {
-                        Image(systemName: statusSymbol)
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(message.status == "read" ? CXColor.checkRead : CXColor.textMute)
+                if message.isForwarded || message.editedAt != nil {
+                    HStack(spacing: 5) {
+                        if message.isForwarded {
+                            Text("⤳ Encaminhado")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
+                        }
+                        if message.editedAt != nil {
+                            Text("editada")
+                                .font(.system(size: 10, weight: .medium))
+                                .italic()
+                                .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.72))
+                        }
                     }
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: 820, alignment: .leading)
+            .padding(.top, 10)
+            .padding(.bottom, 18)
+            .padding(.trailing, message.fromMe ? 58 : 46)
             .background(bubbleBackground)
             .clipShape(bubbleShape)
             .opacity(message.isDeleted ? 0.72 : (message.status == "pending" ? 0.92 : 1))
             .saturation(message.isDeleted ? 0.24 : 1)
             .overlay(bubbleShape.stroke(borderColor, lineWidth: 1))
             .overlay(bubbleShape.fill(CXColor.accent.opacity(isHighlighted ? 0.16 : 0)))
-            .shadow(color: .black.opacity(0.12), radius: 2, x: 0, y: 1)
+            .overlay(alignment: .bottomTrailing) {
+                HStack(spacing: 4) {
+                    Text(message.sentAt == .distantPast ? "" : message.sentAt.formatted(.dateTime.hour().minute()))
+                        .font(.system(size: 10, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle((message.fromMe ? CXColor.bubbleOutText : CXColor.textMute).opacity(0.78))
+                    if message.fromMe {
+                        Image(systemName: statusSymbol)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(message.status == "read" ? CXColor.checkRead : CXColor.bubbleOutText.opacity(0.78))
+                    }
+                }
+                .padding(.trailing, 12)
+                .padding(.bottom, 6)
+            }
+            .frame(maxWidth: 520, alignment: message.fromMe ? .trailing : .leading)
+            .shadow(color: bubbleShadowColor, radius: message.fromMe ? 20 : 6, x: 0, y: 4)
             .contextMenu {
                 Button("Responder") { onReply() }
                 if !message.isDeleted {
@@ -956,9 +616,16 @@ struct CXMessageBubbleView: View {
                 }
             }
 
-            if !message.fromMe { Spacer(minLength: 96) }
+            if !message.fromMe { Spacer(minLength: 64) }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var bubbleShadowColor: Color {
+        if message.fromMe {
+            return CXColor.accent.opacity(0.35)
+        }
+        return Color.black.opacity(0.08)
     }
 
     @ViewBuilder
@@ -979,6 +646,11 @@ struct CXMessageBubbleView: View {
                 )
                 .frame(maxWidth: 260, maxHeight: 260)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .onTapGesture {
+                    if message.type == "image" {
+                        onOpenLightbox?(mediaURL)
+                    }
+                }
             } else {
                 mediaFallback("Imagem indisponível")
             }
@@ -1054,13 +726,12 @@ struct CXMessageBubbleView: View {
         }
     }
 
-    // Espelha .cx-msg-bubble do CSS web:
-    // - radius 14 em todos os cantos
-    // - canto emissor de 4: inbound bottom-left=4, outbound bottom-right=4
     private var bubbleShape: AnyShape {
-        let bl: CGFloat = message.fromMe ? CXRadius.lg : CXRadius.xs
-        let br: CGFloat = message.fromMe ? CXRadius.xs : CXRadius.lg
-        return AnyShape(BubbleShape(topLeft: CXRadius.lg, topRight: CXRadius.lg, bottomLeft: bl, bottomRight: br))
+        let rad = CXRadius.bubble
+        let notch: CGFloat = 6
+        let topLeft: CGFloat = (!message.fromMe && isFirstOfGroup) ? notch : rad
+        let topRight: CGFloat = (message.fromMe && isFirstOfGroup) ? notch : rad
+        return AnyShape(BubbleShape(topLeft: topLeft, topRight: topRight, bottomLeft: rad, bottomRight: rad))
     }
 
     private var borderColor: Color {
@@ -1090,20 +761,27 @@ struct CXMessageBubbleView: View {
 
     @ViewBuilder
     private func quotedBlock(quotedText: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if let quotedSender = message.quotedSender, !quotedSender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(quotedSender)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(message.fromMe ? CXColor.bubbleOutText.opacity(0.8) : CXColor.accent)
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(message.fromMe ? Color.white.opacity(0.6) : CXColor.accent)
+                .frame(width: 3)
+            VStack(alignment: .leading, spacing: 2) {
+                if let quotedSender = message.quotedSender, !quotedSender.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(quotedSender)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(message.fromMe ? CXColor.bubbleOutText.opacity(0.9) : CXColor.accent)
+                }
+                Text(quotedText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(message.fromMe ? CXColor.bubbleOutText.opacity(0.85) : CXColor.textSoft)
+                    .lineLimit(2)
             }
-            Text(quotedText)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(message.fromMe ? CXColor.bubbleOutText.opacity(0.88) : CXColor.textSoft)
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background((message.fromMe ? CXColor.bubbleOutText : CXColor.surface2).opacity(message.fromMe ? 0.12 : 0.84))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.vertical, 6)
+        .background((message.fromMe ? Color.white.opacity(0.12) : CXColor.accentBg))
+        .clipShape(RoundedRectangle(cornerRadius: CXRadius.sm, style: .continuous))
     }
 
     private func initials(_ name: String) -> String {
@@ -1118,76 +796,7 @@ struct CXMessageBubbleView: View {
     }
 }
 
-private struct CXChatWallpaperView: View {
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                LinearGradient(
-                    colors: [CXColor.bg, Color(red: 12 / 255, green: 22 / 255, blue: 43 / 255)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-
-                RadialGradient(
-                    colors: [CXColor.accentBg.opacity(0.34), .clear],
-                    center: .topLeading,
-                    startRadius: 30,
-                    endRadius: 320
-                )
-
-                RadialGradient(
-                    colors: [CXColor.waGreen.opacity(0.08), .clear],
-                    center: .topTrailing,
-                    startRadius: 20,
-                    endRadius: 240
-                )
-
-                Canvas { context, size in
-                    let stepX: CGFloat = 92
-                    let stepY: CGFloat = 92
-                    for row in stride(from: CGFloat(0), through: size.height + stepY, by: stepY) {
-                        for column in stride(from: CGFloat(0), through: size.width + stepX, by: stepX) {
-                            let base = CGPoint(x: column + 24, y: row + 24)
-                            let alpha = ((Int(row + column) / 20) % 2 == 0) ? 0.12 : 0.08
-                            let color = CXColor.borderLight.opacity(alpha)
-
-                            var circle = Path()
-                            circle.addEllipse(in: CGRect(x: base.x, y: base.y, width: 8, height: 8))
-                            context.stroke(circle, with: .color(color), lineWidth: 1)
-
-                            var star1 = Path()
-                            star1.move(to: CGPoint(x: base.x + 22, y: base.y + 4))
-                            star1.addLine(to: CGPoint(x: base.x + 34, y: base.y + 4))
-                            star1.move(to: CGPoint(x: base.x + 28, y: base.y - 2))
-                            star1.addLine(to: CGPoint(x: base.x + 28, y: base.y + 10))
-                            context.stroke(star1, with: .color(color), lineWidth: 1)
-
-                            var diamond = Path()
-                            diamond.move(to: CGPoint(x: base.x + 58, y: base.y))
-                            diamond.addLine(to: CGPoint(x: base.x + 66, y: base.y + 8))
-                            diamond.addLine(to: CGPoint(x: base.x + 58, y: base.y + 16))
-                            diamond.addLine(to: CGPoint(x: base.x + 50, y: base.y + 8))
-                            diamond.closeSubpath()
-                            context.stroke(diamond, with: .color(color), lineWidth: 1)
-
-                            var orbit = Path()
-                            orbit.addEllipse(in: CGRect(x: base.x + 6, y: base.y + 36, width: 30, height: 14))
-                            context.stroke(orbit, with: .color(color.opacity(0.9)), lineWidth: 1)
-
-                            var slash = Path()
-                            slash.move(to: CGPoint(x: base.x + 54, y: base.y + 40))
-                            slash.addLine(to: CGPoint(x: base.x + 70, y: base.y + 56))
-                            context.stroke(slash, with: .color(color), lineWidth: 1)
-                        }
-                    }
-                }
-            }
-            .ignoresSafeArea()
-        }
-    }
-}
-
-// MARK: - Bubble asymmetric corner shape (espelha .cx-msg-bubble do CSS web)
+// MARK: - Bubble asymmetric corner shape
 
 struct BubbleShape: Shape {
     let topLeft: CGFloat

@@ -4,9 +4,10 @@ struct ChatListView: View {
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vm: ChatsViewModel
     @StateObject private var theme = CXTheme.shared
-    @State private var showTransferPrompt = false
-    @State private var showQuickReplies = false
-    @State private var transferTarget = ""
+    @State private var showNewChatSheet = false
+    @State private var newChatPhone = ""
+    @State private var newChatName = ""
+    @State private var newChatConnectionID = ""
 
     var body: some View {
         ZStack {
@@ -34,7 +35,7 @@ struct ChatListView: View {
 
             HStack(spacing: 0) {
                 sidebar
-                    .frame(minWidth: 380, idealWidth: 420, maxWidth: 460)
+                    .frame(width: 68 + 340)
                     .overlay(alignment: .trailing) {
                         Rectangle().fill(CXColor.border).frame(width: 1)
                     }
@@ -64,20 +65,12 @@ struct ChatListView: View {
                     .clipShape(Capsule())
                 }
 
-                if let toast = vm.toast {
-                    HStack(spacing: 8) {
-                        Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        Text(toast.message)
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(toast.isError ? CXColor.danger.opacity(0.95) : CXColor.success.opacity(0.95))
-                    .clipShape(Capsule())
-                }
             }
             .padding(.top, 18)
+
+            CXToastOverlay()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .allowsHitTesting(true)
         }
         .task {
             await vm.loadInitialChatsIfNeeded()
@@ -88,13 +81,14 @@ struct ChatListView: View {
     private var sidebar: some View {
         HStack(spacing: 0) {
             channelRail
-                .frame(width: 60)
+                .frame(width: 68)
                 .background(CXColor.surface2)
                 .overlay(alignment: .trailing) {
                     Rectangle().fill(CXColor.border).frame(width: 1)
                 }
 
             sidebarColumn
+                .frame(width: 340)
         }
     }
 
@@ -131,32 +125,36 @@ struct ChatListView: View {
 
     private var sidebarColumn: some View {
         VStack(spacing: 0) {
-            VStack(spacing: CXSize.s3) {
-                HStack(spacing: CXSize.s2) {
-                    Text(AppVersion.badgeLabel)
-                        .font(.system(size: 9, weight: .heavy))
-                        .tracking(0.8)
+            VStack(spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Conversas")
+                        .font(.system(size: 22, weight: .bold))
+                        .tracking(-0.5)
+                        .foregroundStyle(CXColor.text)
+                    Text("\(vm.visibleChats.count)")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(CXColor.textMute)
-                        .padding(.leading, 2)
+                        .padding(.horizontal, 6)
+                        .frame(minHeight: 18)
+                        .background(CXColor.surface2)
+                        .clipShape(Capsule())
 
                     Spacer(minLength: 4)
-                }
 
-                HStack(spacing: CXSize.s2) {
-                    searchField
                     CXIconButton(systemName: "plus") {}
-                    CXIconButton(systemName: "bell.fill", isOn: true) {}
                     CXIconButton(systemName: themeIconName, isOn: false) { cycleTheme() }
                 }
 
-                HStack(spacing: CXSize.s2) {
+                searchField
+
+                HStack(spacing: 6) {
                     ForEach(ChatFilter.allCases) { filter in
                         filterButton(filter)
                     }
                 }
             }
-            .padding(.horizontal, CXSize.s4)
-            .padding(.top, 14)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
             .padding(.bottom, 12)
             .background(CXGradient.sidebarHeader)
 
@@ -262,10 +260,17 @@ struct ChatListView: View {
     private var mainPanel: some View {
         Group {
             if let chatID = vm.selectedChatID, let chat = vm.chats.first(where: { $0.id == chatID }) {
-                MessageThreadView(chatID: chatID)
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        chatHeader(chat)
-                    }
+                HStack(spacing: 0) {
+                    MessageThreadView(chatID: chatID)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            CXChatHeaderView(chat: chat)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                    Rectangle().fill(CXColor.border).frame(width: 1)
+
+                    DetailPanelView(chat: chat, avatarURL: resolvedChatAvatarURL(chat))
+                }
             } else {
                 VStack(spacing: CXSize.s3) {
                     Image(systemName: "message.fill")
@@ -284,123 +289,15 @@ struct ChatListView: View {
         }
     }
 
-    private func chatHeader(_ chat: Chat) -> some View {
-        HStack(spacing: CXSize.s3) {
-            CXAvatarView(title: chat.title, size: 44, imageURL: resolvedChatAvatarURL(chat))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(chat.title)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(CXColor.text)
-                HStack(spacing: 6) {
-                    Text(companyLabel(for: chat))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(CXColor.textSoft)
-                    Text(chat.isGroup ? "grupo" : "")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(CXColor.textMute)
-                }
-            }
-
-            Spacer()
-
-            CXIconButton(systemName: "link") {}
-            CXIconButton(systemName: "point.3.connected.trianglepath.dotted") { showTransferPrompt = true }
-            CXIconButton(systemName: "arrow.up.left.and.arrow.down.right") {}
-            CXIconButton(systemName: "bell.badge") {}
-            Button {
-                showQuickReplies = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 12, weight: .bold))
-                    Text("Resumir IA")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .frame(height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(CXColor.accentBg.opacity(0.95))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(CXColor.accent.opacity(0.55), lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-            CXIconButton(systemName: "bubble.left.and.text.bubble.right") {}
-            CXIconButton(systemName: "calendar") {}
-            CXIconButton(systemName: vm.isInternalNotesMode ? "note.text" : "note.text.badge.plus") {
-                vm.toggleInternalNotesMode()
-            }
-            CXIconButton(systemName: "checkmark") {
-                Task { await vm.markSelectedChatAsRead() }
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
-        .background(CXColor.surface)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(CXColor.border).frame(height: 1)
-        }
-        .alert("Transferir conversa", isPresented: $showTransferPrompt) {
-            TextField("Destino (agente/fila)", text: $transferTarget)
-            Button("Cancelar", role: .cancel) {}
-            Button("Transferir") {
-                Task { await vm.transferSelectedChat(target: transferTarget) }
-                transferTarget = ""
-            }
-        } message: {
-            Text("Informe o destino da transferência.")
-        }
-        .popover(isPresented: $showQuickReplies, arrowEdge: .top) {
-            VStack(alignment: .leading, spacing: CXSize.s2) {
-                Text("Quick Replies")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(CXColor.text)
-                HStack(spacing: 8) {
-                    TextField("Nova quick reply ou /shortcut", text: $vm.quickReplyDraft)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Adicionar") {
-                        Task { await vm.addQuickReply() }
-                    }
-                }
-                ForEach(vm.quickReplies, id: \.self) { reply in
-                    HStack(spacing: 8) {
-                        Button(reply) {
-                            showQuickReplies = false
-                            Task { await vm.sendQuickReply(reply) }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(CXColor.textSoft)
-                        Spacer()
-                        Button(role: .destructive) {
-                            Task { await vm.removeQuickReply(reply) }
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 11, weight: .bold))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .padding(CXSize.s4)
-            .frame(width: 300)
-            .background(CXColor.surface2)
-        }
-    }
 
     private var searchField: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(CXColor.textMute)
             TextField("Buscar conversas...", text: vm.selectedSidebarTab == .contacts ? $vm.contactSearchText : $vm.searchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(CXColor.text)
             if !(vm.selectedSidebarTab == .contacts ? vm.contactSearchText : vm.searchText).isEmpty {
                 Button {
@@ -410,18 +307,21 @@ struct ChatListView: View {
                         vm.searchText = ""
                     }
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(CXColor.textMute)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 36)
+        .frame(height: 38)
         .background(CXColor.input)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(CXColor.inputBorder, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: CXRadius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: CXRadius.md, style: .continuous)
+                .stroke(CXColor.inputBorder, lineWidth: 1)
+        )
     }
 
     private func filterButton(_ filter: ChatFilter) -> some View {
@@ -508,29 +408,42 @@ struct ChatListView: View {
 
     private var contactsPanel: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(CXColor.textMute)
-                TextField("Buscar contato", text: $vm.contactSearchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(CXColor.text)
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(CXColor.textMute)
+                    TextField("Buscar contato", text: $vm.contactSearchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundStyle(CXColor.text)
+                }
+                .padding(.horizontal, CXSize.s3)
+                .frame(height: 36)
+                .background(CXColor.input)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
+
+                Button {
+                    newChatPhone = ""
+                    newChatName = ""
+                    newChatConnectionID = vm.availableConnections.first ?? ""
+                    showNewChatSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(CXColor.accent)
+                }
+                .buttonStyle(.plain)
+                .help("Nova conversa")
             }
-            .padding(.horizontal, CXSize.s3)
-            .frame(height: 36)
-            .background(CXColor.input)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(CXColor.borderLight, lineWidth: 1))
             .padding(CXSize.s3)
 
             ScrollView {
                 LazyVStack(spacing: CXSize.s1) {
                     ForEach(vm.contactsDirectory) { contact in
                         Button {
-                            vm.selectedSidebarTab = .chats
-                            vm.selectedChatID = contact.id
-                            Task { await vm.loadMessages(for: contact.id) }
+                            Task { await vm.openOrCreateContact(contact) }
                         } label: {
                             HStack(spacing: CXSize.s3) {
                                 CXAvatarView(title: contact.title, size: 34)
@@ -564,5 +477,64 @@ struct ChatListView: View {
         .background(
             LinearGradient(colors: [CXColor.surface, CXColor.surface2.opacity(0.75)], startPoint: .top, endPoint: .bottom)
         )
+        .sheet(isPresented: $showNewChatSheet) {
+            newChatSheet
+        }
+    }
+
+    private var newChatSheet: some View {
+        VStack(alignment: .leading, spacing: CXSize.s3) {
+            Text("Nova conversa")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(CXColor.text)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Conexão")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CXColor.textMute)
+                Picker("", selection: $newChatConnectionID) {
+                    ForEach(vm.availableConnections, id: \.self) { conn in
+                        Text(conn).tag(conn)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Telefone (com DDI, ex.: 5511999999999)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CXColor.textMute)
+                TextField("5511999999999", text: $newChatPhone)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Nome (opcional)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(CXColor.textMute)
+                TextField("Nome do contato", text: $newChatName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancelar") { showNewChatSheet = false }
+                Button("Criar") {
+                    let digits = newChatPhone.filter { $0.isNumber }
+                    guard !digits.isEmpty, !newChatConnectionID.isEmpty else { return }
+                    let jid = "\(digits)@s.whatsapp.net"
+                    let conn = newChatConnectionID
+                    let name = newChatName
+                    showNewChatSheet = false
+                    Task { await vm.openOrCreateContact(jid: jid, connectionID: conn, name: name) }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(newChatPhone.filter { $0.isNumber }.isEmpty || newChatConnectionID.isEmpty)
+            }
+        }
+        .padding(CXSize.s4)
+        .frame(width: 380)
+        .background(CXColor.surface2)
     }
 }

@@ -119,6 +119,7 @@ struct AuthedImage<Placeholder: View, Fallback: View>: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if failed || url == nil {
                 fallback()
             } else {
@@ -131,6 +132,8 @@ struct AuthedImage<Placeholder: View, Fallback: View>: View {
     }
 
     private func reload() async {
+        self.image = nil
+        self.failed = false
         guard let url else { return }
         let key = url.absoluteString
         if let cached = AuthedImageLoader.shared.cached(for: cacheKeyHash(key)) {
@@ -140,13 +143,12 @@ struct AuthedImage<Placeholder: View, Fallback: View>: View {
         let apiKey = sessionStore.session?.apiKey
         let authSource = sessionStore.session?.authSource
         let loaded = await AuthedImageLoader.shared.load(url: url, apiKey: apiKey, authSource: authSource)
-        await MainActor.run {
-            if let loaded {
-                self.image = loaded
-                self.failed = false
-            } else {
-                self.failed = true
-            }
+        guard !Task.isCancelled else { return }
+        if let loaded {
+            self.image = loaded
+            self.failed = false
+        } else {
+            self.failed = true
         }
     }
 

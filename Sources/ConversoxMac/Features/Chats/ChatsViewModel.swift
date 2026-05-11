@@ -89,6 +89,25 @@ final class ChatsViewModel: ObservableObject {
     private var didLoadQuickReplies = false
     private var quickReplyIDByBody: [String: String] = [:]
     private var quickReplyBodyByShortcut: [String: String] = [:]
+    private var quickReplyShortcutByBody: [String: String] = [:]
+
+    struct QuickReplyDisplay: Identifiable, Hashable, Sendable {
+        let id: String
+        let body: String
+        let shortcut: String?
+    }
+
+    var quickReplyDisplays: [QuickReplyDisplay] {
+        quickReplies.map { body in
+            let id = quickReplyIDByBody[body] ?? body
+            let shortcut = quickReplyShortcutByBody[body]
+            return QuickReplyDisplay(id: id, body: body, shortcut: shortcut)
+        }
+    }
+
+    func quickReplyIDByBody(_ body: String) -> String? {
+        quickReplyIDByBody[body]
+    }
 
     private let backoffSchedule: [UInt64] = [3, 15, 30, 60, 120]
     private var backoffIndex = 0
@@ -106,6 +125,20 @@ final class ChatsViewModel: ObservableObject {
     var operatorDisplayName: String {
         let raw = currentSession?.user.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return (raw?.isEmpty == false) ? raw! : "Operador"
+    }
+
+    var availableConnections: [String] {
+        let fromSession = currentSession?.user.connections ?? []
+        let fromChats = Set(chats.map { $0.connectionID })
+        var seen = Set<String>()
+        var result: [String] = []
+        for conn in fromSession + Array(fromChats).sorted() {
+            let trimmed = conn.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+            seen.insert(trimmed)
+            result.append(trimmed)
+        }
+        return result
     }
 
     var quickReplyShortcutChips: [String] {
@@ -155,6 +188,7 @@ final class ChatsViewModel: ObservableObject {
             messageStore.setMessages(response.messages, for: chatID)
             syncMessages(for: chatID)
             hasOlderByChat[chatID] = response.hasOlder ?? false
+            enqueueAutoFetchMedia(chatID: chatID, messages: response.messages)
             await loadNotes(for: chatID)
         } catch let error as ConversoxError {
             errorMessage = error.userMessage
@@ -234,6 +268,10 @@ final class ChatsViewModel: ObservableObject {
                 quickReplyBodyByShortcut = entries.reduce(into: [:]) { acc, item in
                     guard let shortcut = item.shortcut?.lowercased(), !shortcut.isEmpty else { return }
                     acc[shortcut] = item.body
+                }
+                quickReplyShortcutByBody = entries.reduce(into: [:]) { acc, item in
+                    guard let shortcut = item.shortcut, !shortcut.isEmpty else { return }
+                    acc[item.body] = shortcut
                 }
             }
         } catch {
@@ -686,6 +724,172 @@ final class ChatsViewModel: ObservableObject {
         }
     }
 
+    func openOrCreateContact(_ contact: ContactDirectoryEntry) async {
+        if chats.contains(where: { $0.id == contact.id }) {
+            selectedSidebarTab = .chats
+            selectedChatID = contact.id
+            await loadMessages(for: contact.id)
+            return
+        }
+        guard let session = currentSession else { return }
+        do {
+            try await chatsService.createContact(
+                session: session,
+                jid: contact.jid,
+                connectionID: contact.connectionID,
+                name: contact.title
+            )
+            await reloadChats()
+            selectedSidebarTab = .chats
+            selectedChatID = contact.id
+            await loadMessages(for: contact.id)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao abrir contato."
+            showToast("Falha ao abrir contato.", isError: true)
+        }
+    }
+
+    func openOrCreateContact(jid: String, connectionID: String, name: String?) async {
+        let id = "\(connectionID)|\(jid)"
+        if let existing = chats.first(where: { $0.id == id }) {
+            selectedSidebarTab = .chats
+            selectedChatID = existing.id
+            await loadMessages(for: existing.id)
+            return
+        }
+        guard let session = currentSession else { return }
+        do {
+            try await chatsService.createContact(
+                session: session,
+                jid: jid,
+                connectionID: connectionID,
+                name: name
+            )
+            await reloadChats()
+            selectedSidebarTab = .chats
+            selectedChatID = id
+            await loadMessages(for: id)
+            showToast("Conversa criada.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao criar conversa."
+            showToast("Falha ao criar conversa.", isError: true)
+        }
+    }
+
+    func openChatByCode(_ code: String) async {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let session = currentSession else { return }
+        do {
+            let resolution = try await chatsService.resolveChatCode(session: session, code: trimmed)
+            guard resolution.ok, let jid = resolution.jid, let conn = resolution.connectionID else {
+                showToast("Conversa não encontrada.", isError: true)
+                return
+            }
+            let id = "\(conn)|\(jid)"
+            if chats.contains(where: { $0.id == id }) {
+                selectedSidebarTab = .chats
+                selectedChatID = id
+                await loadMessages(for: id)
+            } else {
+                await openOrCreateContact(jid: jid, connectionID: conn, name: nil)
+            }
+        } catch let error as ConversoxError {
+            showToast(error.userMessage, isError: true)
+        } catch {
+            showToast("Falha ao abrir conversa.", isError: true)
+        }
+    }
+
+    func scheduleSelectedMessage(text: String, date: String, time: String, timezone: String?) async {
+        guard let session = currentSession, let chat = selectedChat else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            showToast("Mensagem vazia.", isError: true)
+            return
+        }
+        do {
+            try await chatsService.createSchedule(
+                session: session,
+                chat: chat,
+                message: trimmed,
+                date: date,
+                time: time,
+                timezone: timezone
+            )
+            showToast("Mensagem agendada.", isError: false)
+        } catch let error as ConversoxError {
+            showToast(error.userMessage, isError: true)
+        } catch {
+            showToast("Falha ao agendar mensagem.", isError: true)
+        }
+    }
+
+    @Published private(set) var groupParticipantsByJID: [String: [GroupParticipant]] = [:]
+
+    func loadGroupParticipantsForSelected() async {
+        guard let session = currentSession, let chat = selectedChat, chat.isGroup else { return }
+        if groupParticipantsByJID[chat.jid] != nil { return }
+        do {
+            let participants = try await chatsService.fetchGroupParticipants(
+                session: session,
+                jid: chat.jid,
+                connectionID: chat.connectionID
+            )
+            groupParticipantsByJID[chat.jid] = participants
+        } catch {
+            groupParticipantsByJID[chat.jid] = []
+        }
+    }
+
+    func mentionSuggestions(for chatJID: String, query: String) -> [GroupParticipant] {
+        let pool = groupParticipantsByJID[chatJID] ?? []
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if q.isEmpty { return Array(pool.prefix(8)) }
+        return pool.filter { p in
+            (p.name?.lowercased().contains(q) ?? false)
+                || (p.phone?.lowercased().contains(q) ?? false)
+                || p.jid.lowercased().contains(q)
+        }.prefix(8).map { $0 }
+    }
+
+    func renameSelectedContact(to newName: String) async {
+        guard let session = currentSession,
+              let chat = selectedChat else { return }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            try await chatsService.setContactName(session: session, jid: chat.jid, name: trimmed)
+            await reloadChats()
+            showToast("Contato renomeado.", isError: false)
+        } catch let error as ConversoxError {
+            errorMessage = error.userMessage
+            showToast(error.userMessage, isError: true)
+        } catch {
+            errorMessage = "Falha ao renomear contato."
+            showToast("Falha ao renomear contato.", isError: true)
+        }
+    }
+
+    func copySelectedChatLink() {
+        guard let chat = selectedChat else { return }
+        guard let code = chat.chatCode, !code.isEmpty else {
+            showToast("Conversa sem código público.", isError: true)
+            return
+        }
+        let tenantStr = (currentSession?.user.tenant ?? currentSession?.authSource ?? "imigrando").lowercased()
+        let host = tenantStr == "welcome" ? "app.welcome.education" : "app.imigrando.com"
+        let link = "https://\(host)/Conversox/v6.php?code=\(code)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(link, forType: .string)
+        showToast("Link da conversa copiado.", isError: false)
+    }
+
     func sendQuickReply(_ text: String) async {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         draftMessage = text
@@ -726,6 +930,7 @@ final class ChatsViewModel: ObservableObject {
                 quickReplyIDByBody[parsed.body] = id
             }
             quickReplyBodyByShortcut[parsed.shortcut.lowercased()] = parsed.body
+            quickReplyShortcutByBody[parsed.body] = parsed.shortcut
             showToast("Quick reply adicionada.", isError: false)
             quickReplyDraft = ""
         } catch let error as ConversoxError {
@@ -737,12 +942,40 @@ final class ChatsViewModel: ObservableObject {
         }
     }
 
+    func updateQuickReplyEntry(id: String, shortcut: String, body: String) async {
+        guard let session = currentSession else { return }
+        let cleanShortcut = shortcut.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanShortcut.isEmpty, !cleanBody.isEmpty else { return }
+        let oldBody = quickReplyIDByBody.first(where: { $0.value == id })?.key
+        do {
+            _ = try await chatsService.updateQuickReply(session: session, id: id, shortcut: cleanShortcut, body: cleanBody)
+            if let oldBody {
+                quickReplies.removeAll { $0 == oldBody }
+                quickReplyIDByBody.removeValue(forKey: oldBody)
+                quickReplyShortcutByBody.removeValue(forKey: oldBody)
+                quickReplyBodyByShortcut = quickReplyBodyByShortcut.filter { $0.value != oldBody }
+            }
+            quickReplies.append(cleanBody)
+            quickReplies.sort()
+            quickReplyIDByBody[cleanBody] = id
+            quickReplyShortcutByBody[cleanBody] = cleanShortcut
+            quickReplyBodyByShortcut[cleanShortcut.lowercased()] = cleanBody
+            showToast("Quick reply atualizada.", isError: false)
+        } catch let error as ConversoxError {
+            showToast(error.userMessage, isError: true)
+        } catch {
+            showToast("Falha ao atualizar quick reply.", isError: true)
+        }
+    }
+
     func removeQuickReply(_ value: String) async {
         guard let session = currentSession else { return }
         if let id = quickReplyIDByBody[value] {
             do {
                 try await chatsService.deleteQuickReply(session: session, id: id)
                 quickReplyIDByBody.removeValue(forKey: value)
+                quickReplyShortcutByBody.removeValue(forKey: value)
                 quickReplyBodyByShortcut = quickReplyBodyByShortcut.filter { $0.value != value }
             } catch let error as ConversoxError {
                 errorMessage = error.userMessage
@@ -847,9 +1080,32 @@ final class ChatsViewModel: ObservableObject {
                 let incoming = response.inlineMessages.map { $0.withChatID(activeChat.id) }
                 let messages = messageStore.appendInline(incoming, to: activeChat.id)
                 messagesByChat[activeChat.id] = messages
+                enqueueAutoFetchMedia(chatID: activeChat.id, messages: incoming)
 
                 if let latest = incoming.last, !latest.fromMe {
                     NotificationPermissionManager.shared.notifyNewMessage(chatTitle: activeChat.title, preview: latest.text)
+                }
+            }
+
+            if let activeChat, !response.inlineReactions.isEmpty {
+                var updated = messagesByChat[activeChat.id] ?? []
+                for reaction in response.inlineReactions {
+                    let fromMe = reaction.fromMe ?? false
+                    let jid = fromMe ? "me" : activeChat.jid
+                    _ = fromMe
+                    let modelReaction = Message.Reaction(
+                        emoji: reaction.emoji,
+                        jid: jid,
+                        name: nil
+                    )
+                    updated = messageStore.toggleReaction(
+                        chatID: activeChat.id,
+                        messageID: reaction.targetID,
+                        reaction: modelReaction
+                    )
+                }
+                if !updated.isEmpty {
+                    messagesByChat[activeChat.id] = updated
                 }
             }
 
@@ -930,13 +1186,7 @@ final class ChatsViewModel: ObservableObject {
 
     private func showToast(_ message: String, isError: Bool) {
         toast = CXToastState(message: message, isError: isError)
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            guard let self else { return }
-            if self.toast?.message == message {
-                self.toast = nil
-            }
-        }
+        CXToastCenter.shared.push(message, kind: isError ? .error : .success)
     }
 
     private func parseQuickReplyInput(_ input: String) -> (shortcut: String, body: String) {
@@ -959,6 +1209,22 @@ final class ChatsViewModel: ObservableObject {
         }
         let cleaned = shortcut.replacingOccurrences(of: "[^/a-z0-9_]", with: "_", options: .regularExpression)
         return cleaned == "/" ? "/qr_\(Int(Date().timeIntervalSince1970))" : cleaned
+    }
+
+    private static let autoFetchTypes: Set<String> = ["image", "video", "audio", "ptt", "sticker", "document"]
+
+    private func enqueueAutoFetchMedia(chatID: String, messages: [Message]) {
+        let candidates = messages.filter { msg in
+            Self.autoFetchTypes.contains(msg.type.lowercased())
+                && (msg.mediaURL?.isEmpty ?? true)
+                && msg.mediaFetchState == .idle
+                && !msg.isDeleted
+        }
+        for message in candidates.prefix(6) {
+            Task { [weak self] in
+                await self?.fetchMedia(for: chatID, message: message)
+            }
+        }
     }
 
     private func setMediaFetchState(chatID: String, messageID: String, state: Message.MediaFetchState, incrementRetry: Bool = false) {

@@ -371,6 +371,27 @@ struct QuickReplyEntry: Sendable {
     let shortcut: String?
 }
 
+struct GroupParticipant: Decodable, Identifiable, Sendable {
+    let jid: String
+    let phone: String?
+    let name: String?
+    let isAdmin: Bool?
+
+    var id: String { jid }
+
+    enum CodingKeys: String, CodingKey {
+        case jid
+        case phone
+        case name
+        case isAdmin = "is_admin"
+    }
+}
+
+struct GroupParticipantsResponse: Decodable, Sendable {
+    let ok: Bool
+    let participants: [GroupParticipant]
+}
+
 private struct QuickReplyMutationResponse: Decodable, Sendable {
     let ok: Bool
     let quickReply: QuickReplyItem?
@@ -393,6 +414,92 @@ struct ChatsService {
             URLQueryItem(name: "_t", value: String(Int(Date().timeIntervalSince1970)))
         ], session: session, timeout: 8)
         return response.value
+    }
+
+    struct ChatCodeResolution: Decodable, Sendable {
+        let ok: Bool
+        let jid: String?
+        let connectionID: String?
+        let chatCode: String?
+        let error: String?
+
+        enum CodingKeys: String, CodingKey {
+            case ok
+            case jid
+            case connectionID = "connection_id"
+            case chatCode = "chat_code"
+            case error
+        }
+    }
+
+    func resolveChatCode(session: PersistedSession, code: String) async throws -> ChatCodeResolution {
+        let response: ConversoxHTTPResponse<ChatCodeResolution> = try await api.getJSON(
+            .customPrefixed("/chat_code.php"),
+            queryItems: [URLQueryItem(name: "code", value: code)],
+            session: session,
+            timeout: 15
+        )
+        return response.value
+    }
+
+    func fetchGroupParticipants(session: PersistedSession, jid: String, connectionID: String) async throws -> [GroupParticipant] {
+        let response: ConversoxHTTPResponse<GroupParticipantsResponse> = try await api.getJSON(
+            .customPrefixed("/group_participants.php"),
+            queryItems: [
+                URLQueryItem(name: "jid", value: jid),
+                URLQueryItem(name: "connection_id", value: connectionID)
+            ],
+            session: session,
+            timeout: 15
+        )
+        return response.value.participants
+    }
+
+    func createSchedule(
+        session: PersistedSession,
+        chat: Chat,
+        message: String,
+        date: String,
+        time: String,
+        timezone: String?
+    ) async throws {
+        struct Req: Encodable {
+            let action: String
+            let jid: String
+            let connectionID: String
+            let message: String
+            let date: String
+            let time: String
+            let timezone: String?
+
+            enum CodingKeys: String, CodingKey {
+                case action
+                case jid
+                case connectionID = "connection_id"
+                case message
+                case date
+                case time
+                case timezone
+            }
+        }
+        let req = Req(
+            action: "create",
+            jid: chat.jid,
+            connectionID: chat.connectionID,
+            message: message,
+            date: date,
+            time: time,
+            timezone: timezone
+        )
+        let response: ConversoxHTTPResponse<GenericActionResponse> = try await api.postJSON(
+            .customPrefixed("/schedule.php"),
+            body: req,
+            session: session,
+            timeout: 20
+        )
+        if !response.value.ok {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "schedule_failed", rawBody: nil)
+        }
     }
 
     func fetchContactsDirectory(session: PersistedSession, search: String) async throws -> [ContactDirectoryEntry] {
@@ -819,6 +926,50 @@ struct ChatsService {
                 "target_email": target
             ]
         )
+    }
+
+    func createContact(session: PersistedSession, jid: String, connectionID: String, name: String?) async throws {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var payload: [String: String] = [:]
+        if let trimmed, !trimmed.isEmpty { payload["contact_name"] = trimmed }
+        let req = DynamicActionRequest(
+            action: "create_contact",
+            jid: jid,
+            connectionID: connectionID,
+            dynamic: payload
+        )
+        let response: ConversoxHTTPResponse<GenericActionResponse> = try await api.postJSON(
+            .actions,
+            body: req,
+            session: session,
+            timeout: 20
+        )
+        if !response.value.ok {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "create_contact_failed", rawBody: nil)
+        }
+    }
+
+    func setContactName(session: PersistedSession, jid: String, name: String?) async throws {
+        struct Req: Encodable {
+            let action: String
+            let jid: String
+            let name: String?
+        }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let req = Req(
+            action: (trimmed?.isEmpty ?? true) ? "remove_name" : "set_name",
+            jid: jid,
+            name: (trimmed?.isEmpty ?? true) ? nil : trimmed
+        )
+        let response: ConversoxHTTPResponse<GenericActionResponse> = try await api.postJSON(
+            .customPrefixed("/contacts.php"),
+            body: req,
+            session: session,
+            timeout: 20
+        )
+        if !response.value.ok {
+            throw ConversoxError.backend(httpStatus: response.statusCode, backendError: response.value.error ?? "contact_name_failed", rawBody: nil)
+        }
     }
 
     func fetchGroupInvite(session: PersistedSession, chat: Chat) async throws -> String? {

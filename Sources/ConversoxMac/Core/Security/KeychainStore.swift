@@ -1,66 +1,47 @@
 import Foundation
-import Security
 
 @MainActor
 final class KeychainStore {
     static let shared = KeychainStore()
-    private let service = "com.imigrando.conversoxmac"
+    private let directoryName = "ConversoxMac"
 
     private init() {}
 
     func set(_ value: Data, for key: String) throws {
-        let query = baseQuery(for: key)
-        let attributes: [String: Any] = [
-            kSecValueData as String: value
-        ]
-
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecSuccess {
-            return
-        }
-        if updateStatus != errSecItemNotFound {
-            throw KeychainError.unhandled(updateStatus)
-        }
-
-        var addQuery = query
-        addQuery[kSecValueData as String] = value
-        addQuery[kSecAttrSynchronizable as String] = kCFBooleanFalse
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        guard addStatus == errSecSuccess else { throw KeychainError.unhandled(addStatus) }
+        let url = try fileURL(for: key)
+        try value.write(to: url, options: [.atomic, .completeFileProtection])
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     func get(for key: String) throws -> Data? {
-        var query = baseQuery(for: key)
-        query.merge([
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]) { _, new in new }
-
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-
-        switch status {
-        case errSecSuccess:
-            return item as? Data
-        case errSecItemNotFound:
-            return nil
-        default:
-            throw KeychainError.unhandled(status)
-        }
+        let url = try fileURL(for: key)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try Data(contentsOf: url)
     }
 
     func delete(for key: String) {
-        let query = baseQuery(for: key)
-        SecItemDelete(query as CFDictionary)
+        guard let url = try? fileURL(for: key) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
-    private func baseQuery(for key: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
+    private func directoryURL() throws -> URL {
+        let base = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let dir = base.appendingPathComponent(directoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
     }
+
+    private func fileURL(for key: String) throws -> URL {
+        let dir = try directoryURL()
+        let safe = key.replacingOccurrences(of: "/", with: "_")
+        return dir.appendingPathComponent("\(safe).bin")
+    }
+
 }
 
 enum KeychainError: Error {
