@@ -15,20 +15,21 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.10</string>
+	<string>0.3.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>ConversoxMac OAuth Callback</string>
+			<string>ConversoxMac Deep Link</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>conversoxmac</string>
+				<string>conversox</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>0210</string>
+	<string>030</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
 	<key>SUAutomaticallyUpdate</key>
