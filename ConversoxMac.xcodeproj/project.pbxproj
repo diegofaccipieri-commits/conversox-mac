@@ -16,6 +16,7 @@
 		56C0FA117D2AAA86C65C827E /* ChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 751C97484FEC588F29E1367F /* ChatStore.swift */; };
 		5873FF15848729201AC116CF /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77053B8B3A7ED419C71A2D8 /* Chat.swift */; };
 		6A373118AF2D8101DF4FBF67 /* CXChatRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CE80DEBF8A6B50D7837CD8 /* CXChatRowView.swift */; };
+		6D6F1B03D1FF6C27BFF6FA4C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = EDB232D40A015F53D73C5514 /* Sparkle */; };
 		6DCF23E05E18C993C367F822 /* MessageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697E7D7836138EE71CEB5BB3 /* MessageStore.swift */; };
 		7CC1BAB3104A36EF369B0582 /* ConversoxMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E450147CA9706F3D4808DD2 /* ConversoxMacApp.swift */; };
 		803FB485945E1B5B10A46391 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1676546237DBFF9E07BBC1F4 /* AppBootstrap.swift */; };
@@ -28,6 +29,7 @@
 		AFAD1537338B4E05D31B4087 /* MessageThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21392C80E1658A927923A15 /* MessageThreadView.swift */; };
 		C00CCC075A9D5A75390E1888 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC08E8024C110DFEC93146B /* AuthService.swift */; };
 		C89971B7B7CD4D6EF93AC48F /* ChatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4125601A9D2E1EA9F59CAA0 /* ChatsService.swift */; };
+		CF522B8277B17BDE970A7C30 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD4FB673DEECB5F4909ECBF0 /* UpdaterManager.swift */; };
 		D6DD26F867102D0D7028989A /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F816CB0B1BD29DB3BDFC4973 /* AppConfig.swift */; };
 		DCAAB51308A312D21F601001 /* AuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C569EDBCAC5654B0ED37B299 /* AuthModels.swift */; };
 		E266CF9900E1901C0C4CA2FB /* ConversoxAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 349F708E6DAA8EB479240F62 /* ConversoxAPI.swift */; };
@@ -52,6 +54,7 @@
 		97418E815C8F4994E37AC842 /* ConversoxMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ConversoxMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A21392C80E1658A927923A15 /* MessageThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageThreadView.swift; sourceTree = "<group>"; };
 		A5A50F9F56D76E7030860CFB /* AuthedImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthedImage.swift; sourceTree = "<group>"; };
+		AD4FB673DEECB5F4909ECBF0 /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
 		C569EDBCAC5654B0ED37B299 /* AuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModels.swift; sourceTree = "<group>"; };
 		C77053B8B3A7ED419C71A2D8 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		C9A94FF623BD91390CD52CA3 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
@@ -64,6 +67,17 @@
 		F816CB0B1BD29DB3BDFC4973 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		FE937E0C1CA32D89290EF5AC /* CXAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CXAvatarView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B8DDFC41AE39154E9EAA0B74 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6D6F1B03D1FF6C27BFF6FA4C /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0D3250A4968D339E12A4586C /* Auth */ = {
@@ -117,6 +131,7 @@
 				1676546237DBFF9E07BBC1F4 /* AppBootstrap.swift */,
 				7E450147CA9706F3D4808DD2 /* ConversoxMacApp.swift */,
 				71D6200BC03548C846D3A4DB /* RootView.swift */,
+				AD4FB673DEECB5F4909ECBF0 /* UpdaterManager.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -236,6 +251,7 @@
 			buildConfigurationList = 8395FBE6ADB2B09327446960 /* Build configuration list for PBXNativeTarget "ConversoxMac" */;
 			buildPhases = (
 				3A891DDF2FA2E283F0A94535 /* Sources */,
+				B8DDFC41AE39154E9EAA0B74 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -243,6 +259,7 @@
 			);
 			name = ConversoxMac;
 			packageProductDependencies = (
+				EDB232D40A015F53D73C5514 /* Sparkle */,
 			);
 			productName = ConversoxMac;
 			productReference = 97418E815C8F4994E37AC842 /* ConversoxMac.app */;
@@ -268,6 +285,9 @@
 			);
 			mainGroup = 1BB24A5A5C9804791C24AF62;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E0496F01CEEE963989D33DAA /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AB7EF49DC34BBAB12F4E81AA /* Products */;
 			projectDirPath = "";
@@ -309,6 +329,7 @@
 				4FBED8404E5E134DB1762509 /* RootView.swift in Sources */,
 				9054047BA517A95B153DDB03 /* SessionStore.swift in Sources */,
 				ADE28F73709FFE614F3EA136 /* SignInView.swift in Sources */,
+				CF522B8277B17BDE970A7C30 /* UpdaterManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -496,6 +517,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E0496F01CEEE963989D33DAA /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		EDB232D40A015F53D73C5514 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0496F01CEEE963989D33DAA /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 49D09B9D25CFA7AEC16972E9 /* Project object */;
 }

@@ -5,6 +5,11 @@ options:
     macOS: "14.0"
   xcodeVersion: "15.0"
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.1
+
 targets:
   ConversoxMac:
     type: application
@@ -12,6 +17,8 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - Sources/ConversoxMac
+    dependencies:
+      - package: Sparkle
     info:
       path: ConversoxMac/Info.plist
       properties:
@@ -20,6 +27,10 @@ targets:
             CFBundleURLSchemes:
               - conversoxmac
         NSHumanReadableCopyright: ""
+        SUFeedURL: https://diegofaccipieri-commits.github.io/conversox-mac/appcast.xml
+        SUPublicEDKey: mTJgzCePMVpv0TEK3j6LOoiAPl/OnCMSorKoJz8EJ2Q=
+        SUEnableAutomaticChecks: false
+        SUAutomaticallyUpdate: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.diego.conversoxmac

@@ -15,7 +15,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.2.5</string>
+	<string>1.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -28,8 +28,16 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>025</string>
+	<string>1</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://diegofaccipieri-commits.github.io/conversox-mac/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>mTJgzCePMVpv0TEK3j6LOoiAPl/OnCMSorKoJz8EJ2Q=</string>
 </dict>
 </plist>
